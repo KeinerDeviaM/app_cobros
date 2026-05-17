@@ -234,7 +234,7 @@ const defaultBusinessSettings: BusinessSettings = {
   phone: '',
   address: '',
   receiptMessage: 'Gracias por su pago. Conserve este comprobante.',
-  receiptLegalText: 'Este comprobante es vÃƒÆ’Ã‚Â¡lido como soporte del pago registrado.',
+  receiptLegalText: 'Este comprobante es v�lido como soporte del pago registrado.',
   receiptFooter: 'Generado por App Cobros',
   currency: 'COP',
   primaryColor: '#2563EB',
@@ -1638,7 +1638,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const localVisit = visits.find((visit) => visit.id === visitId);
 
     if (!localVisit) {
-      Alert.alert('Promesa no encontrada', 'No se encontrÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³ la promesa seleccionada.');
+      Alert.alert('Promesa no encontrada', 'No se encontró la promesa seleccionada.');
       return;
     }
 

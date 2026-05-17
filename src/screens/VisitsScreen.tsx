@@ -27,8 +27,8 @@ function getVisitBadge(status: VisitStatus) {
 function getVisitLabel(status: VisitStatus) {
   if (status === 'pendiente') return 'Pendiente';
   if (status === 'visitado') return 'Visitado';
-  if (status === 'pago') return 'PagÃ³';
-  if (status === 'no-pago') return 'No pagÃ³';
+  if (status === 'pago') return 'Pagó';
+  if (status === 'no-pago') return 'No pagó';
   if (status === 'no-estaba') return 'No estaba';
   if (status === 'promesa') return 'Promesa';
   return status;
@@ -70,7 +70,7 @@ export function VisitsScreen() {
 
       <Screen>
         <Card style={styles.heroCard}>
-          <Text style={styles.heroTitle}>GestiÃ³n de visitas</Text>
+          <Text style={styles.heroTitle}>Gestión de visitas</Text>
           <Text style={styles.heroText}>
             Registra visitas, pagos, no pagos y promesas con valor prometido.
           </Text>
@@ -163,12 +163,12 @@ function VisitCard({
     const value = parseMoney(promesaValor);
 
     if (!isValidDateKey(promesaFecha)) {
-      Alert.alert('Fecha invÃ¡lida', 'La fecha de promesa debe tener formato YYYY-MM-DD.');
+      Alert.alert('Fecha inválida', 'La fecha de promesa debe tener formato YYYY-MM-DD.');
       return;
     }
 
     if (!isPositiveMoney(value)) {
-      Alert.alert('Valor invÃ¡lido', 'Ingresa el valor prometido por el cliente.');
+      Alert.alert('Valor inválido', 'Ingresa el valor prometido por el cliente.');
       return;
     }
 
@@ -187,8 +187,8 @@ function VisitCard({
       <View style={styles.visitHeader}>
         <View style={styles.visitInfo}>
           <Text style={styles.clientName}>{visit.clienteNombre}</Text>
-          <Text style={styles.clientMeta}>TelÃ©fono: {visit.clienteTelefono}</Text>
-          <Text style={styles.clientMeta}>DirecciÃ³n: {visit.clienteDireccion}</Text>
+          <Text style={styles.clientMeta}>Teléfono: {visit.clienteTelefono}</Text>
+          <Text style={styles.clientMeta}>Dirección: {visit.clienteDireccion}</Text>
           <Text style={styles.clientMeta}>Barrio: {visit.clienteBarrio}</Text>
           <Text style={styles.clientMeta}>Ruta: {visit.routeName || 'Sin ruta'}</Text>
           <Text style={styles.clientMeta}>Fecha visita: {visit.fecha}</Text>
@@ -207,20 +207,20 @@ function VisitCard({
       ) : null}
 
       <Input
-        label="ObservaciÃ³n"
-        icon="ðŸ“"
+        label="Observación"
+        icon="📝"
         value={observacion}
         onChangeText={setObservacion}
-        placeholder="Ej: cliente pagÃ³, no estaba, promete pagar..."
+        placeholder="Ej: cliente pagó, no estaba, promete pagar..."
       />
 
       <View style={styles.actionGrid}>
         <Button title="Visitado" variant="secondary" onPress={() => saveStatus('visitado')} style={styles.actionButton} />
-        <Button title="PagÃ³" variant="secondary" onPress={() => saveStatus('pago')} style={styles.actionButton} />
+        <Button title="Pagó" variant="secondary" onPress={() => saveStatus('pago')} style={styles.actionButton} />
       </View>
 
       <View style={styles.actionGrid}>
-        <Button title="No pagÃ³" variant="danger" onPress={() => saveStatus('no-pago')} style={styles.actionButton} />
+        <Button title="No pagó" variant="danger" onPress={() => saveStatus('no-pago')} style={styles.actionButton} />
         <Button title="No estaba" variant="danger" onPress={() => saveStatus('no-estaba')} style={styles.actionButton} />
       </View>
 
@@ -229,7 +229,7 @@ function VisitCard({
 
         <Input
           label="Fecha prometida"
-          icon="ðŸ“…"
+          icon="📅"
           value={promesaFecha}
           onChangeText={setPromesaFecha}
           placeholder="YYYY-MM-DD"
@@ -237,7 +237,7 @@ function VisitCard({
 
         <Input
           label="Valor prometido"
-          icon="ðŸ’°"
+          icon="💰"
           value={promesaValor}
           onChangeText={setPromesaValor}
           keyboardType="numeric"

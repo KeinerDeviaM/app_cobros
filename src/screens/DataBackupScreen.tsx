@@ -146,11 +146,11 @@ export function DataBackupScreen() {
       '',
       `Clientes: ${stats.totalClientes}`,
       `Clientes en mora: ${stats.clientesMora}`,
-      `CrÃƒÂ©ditos totales: ${stats.totalCreditos}`,
-      `CrÃƒÂ©ditos activos: ${stats.creditosActivos}`,
-      `CrÃƒÂ©ditos pagados: ${stats.creditosPagados}`,
-      `CrÃƒÂ©ditos vencidos: ${stats.creditosVencidos}`,
-      `CrÃƒÂ©ditos anulados: ${stats.creditosAnulados}`,
+      `Créditos totales: ${stats.totalCreditos}`,
+      `Créditos activos: ${stats.creditosActivos}`,
+      `Créditos pagados: ${stats.creditosPagados}`,
+      `Créditos vencidos: ${stats.creditosVencidos}`,
+      `Créditos anulados: ${stats.creditosAnulados}`,
       '',
       `Total prestado: ${formatMoney(stats.totalPrestado)}`,
       `Total a pagar: ${formatMoney(stats.totalAPagar)}`,
@@ -166,7 +166,7 @@ export function DataBackupScreen() {
       `Visitas: ${stats.visitas}`,
       `Promesas: ${stats.promesas}`,
       `Cierres de caja: ${stats.cierresCaja}`,
-      `Registros de auditorÃƒÂ­a: ${stats.auditoria}`
+      `Registros de auditoría: ${stats.auditoria}`
     ].join('\n');
   }, [businessSettings, session.email, stats, today]);
 
@@ -232,13 +232,13 @@ export function DataBackupScreen() {
         <Card style={styles.heroCard}>
           <Text style={styles.heroTitle}>Respaldo completo</Text>
           <Text style={styles.heroText}>
-            Exporta toda la informaciÃƒÂ³n de la app en un archivo JSON para guardarlo como copia de seguridad.
+            Exporta toda la información de la app en un archivo JSON para guardarlo como copia de seguridad.
           </Text>
         </Card>
 
         <View style={styles.grid}>
           <Metric title="Clientes" value={String(stats.totalClientes)} />
-          <Metric title="CrÃƒÂ©ditos" value={String(stats.totalCreditos)} />
+          <Metric title="Créditos" value={String(stats.totalCreditos)} />
         </View>
 
         <View style={styles.grid}>
@@ -252,17 +252,17 @@ export function DataBackupScreen() {
         </View>
 
         <Card style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>QuÃƒÂ© incluye el respaldo</Text>
+          <Text style={styles.sectionTitle}>Qué incluye el respaldo</Text>
 
-          <InfoRow label="ConfiguraciÃƒÂ³n del negocio" value="SÃƒÂ­" />
+          <InfoRow label="Configuración del negocio" value="Sí" />
           <InfoRow label="Clientes" value={String(clients.length)} />
-          <InfoRow label="CrÃƒÂ©ditos" value={String(credits.length)} />
+          <InfoRow label="Créditos" value={String(credits.length)} />
           <InfoRow label="Pagos" value={String(payments.length)} />
           <InfoRow label="Gastos" value={String(expenses.length)} />
           <InfoRow label="Rutas" value={String(routes.length)} />
           <InfoRow label="Visitas" value={String(visits.length)} />
           <InfoRow label="Cierres de caja" value={String(cashClosings.length)} />
-          <InfoRow label="AuditorÃƒÂ­a" value={String(auditLogs.length)} />
+          <InfoRow label="Auditoría" value={String(auditLogs.length)} />
           <InfoRow label="Usuarios" value={String(users.length)} />
         </Card>
 
@@ -272,7 +272,7 @@ export function DataBackupScreen() {
             Este respaldo es una copia de seguridad para guardar o revisar. No reemplaza la base de datos de Firebase.
           </Text>
           <Text style={styles.warningText}>
-            GuÃƒÂ¡rdalo en un lugar seguro porque contiene informaciÃƒÂ³n sensible del negocio.
+            Guárdalo en un lugar seguro porque contiene información sensible del negocio.
           </Text>
         </Card>
 

@@ -158,7 +158,7 @@ export function CollectionsCalendarScreen() {
         <Card style={styles.heroCard}>
           <Text style={styles.heroTitle}>Agenda de cobranza</Text>
           <Text style={styles.heroText}>
-            Revisa quÃ© cuotas debes cobrar hoy, cuÃ¡les estÃ¡n vencidas y las prÃ³ximas de la semana.
+            Revisa qué cuotas debes cobrar hoy, cuáles están vencidas y las próximas de la semana.
           </Text>
           <Text style={styles.heroDate}>Hoy: {today}</Text>
         </Card>
@@ -208,7 +208,7 @@ export function CollectionsCalendarScreen() {
                     ? 'No hay cuotas programadas para hoy.'
                     : tab === 'vencidos'
                       ? 'No hay cuotas vencidas.'
-                      : 'No hay cuotas programadas para los prÃ³ximos 7 dÃ­as.'
+                      : 'No hay cuotas programadas para los próximos 7 días.'
                 }
               />
             ) : (
@@ -293,8 +293,8 @@ function CollectionCard({
       <View style={styles.cardHeader}>
         <View style={styles.cardInfo}>
           <Text style={styles.clientName}>{item.client?.nombre ?? 'Cliente no encontrado'}</Text>
-          <Text style={styles.clientMeta}>TelÃ©fono: {item.client?.telefono || 'Sin telÃ©fono'}</Text>
-          <Text style={styles.clientMeta}>DirecciÃ³n: {item.client?.direccion || 'Sin direcciÃ³n'}</Text>
+          <Text style={styles.clientMeta}>Teléfono: {item.client?.telefono || 'Sin teléfono'}</Text>
+          <Text style={styles.clientMeta}>Dirección: {item.client?.direccion || 'Sin dirección'}</Text>
           <Text style={styles.clientMeta}>Ruta: {item.client?.routeName || 'Sin ruta'}</Text>
         </View>
 
@@ -321,7 +321,7 @@ function CollectionCard({
       <Text style={styles.collector}>Cobrador: {item.credit.assignedToEmail || 'Sin cobrador'}</Text>
 
       <View style={styles.buttonRow}>
-        <Button title="Ver crÃ©dito" variant="secondary" onPress={onOpenCredit} style={styles.smallButton} />
+        <Button title="Ver crédito" variant="secondary" onPress={onOpenCredit} style={styles.smallButton} />
         <Button title="WhatsApp" variant="secondary" onPress={onWhatsApp} style={styles.smallButton} />
       </View>
     </Card>
@@ -334,8 +334,8 @@ function PromiseCard({ visit }: { visit: Visit }) {
       <View style={styles.cardHeader}>
         <View style={styles.cardInfo}>
           <Text style={styles.clientName}>{visit.clienteNombre}</Text>
-          <Text style={styles.clientMeta}>TelÃ©fono: {visit.clienteTelefono}</Text>
-          <Text style={styles.clientMeta}>DirecciÃ³n: {visit.clienteDireccion}</Text>
+          <Text style={styles.clientMeta}>Teléfono: {visit.clienteTelefono}</Text>
+          <Text style={styles.clientMeta}>Dirección: {visit.clienteDireccion}</Text>
           <Text style={styles.clientMeta}>Ruta: {visit.routeName || 'Sin ruta'}</Text>
         </View>
 
@@ -345,7 +345,7 @@ function PromiseCard({ visit }: { visit: Visit }) {
       <View style={styles.promiseBox}>
         <Text style={styles.promiseTitle}>Fecha prometida</Text>
         <Text style={styles.promiseDate}>{visit.promesaFecha || 'Sin fecha'}</Text>
-        <Text style={styles.promiseText}>{visit.observacion || 'Sin observaciÃ³n'}</Text>
+        <Text style={styles.promiseText}>{visit.observacion || 'Sin observación'}</Text>
       </View>
     </Card>
   );
