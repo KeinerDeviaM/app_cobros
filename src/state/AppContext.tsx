@@ -35,7 +35,8 @@ import {
   UserProfile,
   UserRole,
   Visit,
-  VisitStatus
+  VisitStatus,
+  PromiseStatus
 } from '../types';
 import { nowIso, todayKey } from '../utils/date';
 
@@ -168,7 +169,8 @@ type AppContextValue = {
   cancelExpense: (expenseId: string, motivo?: string) => Promise<void>;
   addRoute: (input: NewRouteInput) => Promise<void>;
   createTodayVisits: () => Promise<void>;
-  updateVisitStatus: (visitId: string, status: VisitStatus, observacion?: string, promesaFecha?: string) => Promise<void>;
+  updateVisitStatus: (visitId: string, status: VisitStatus, observacion?: string, promesaFecha?: string, promesaValor?: number, promesaEstado?: PromiseStatus) => Promise<void>;
+  updatePromiseStatus: (visitId: string, promesaEstado: PromiseStatus) => Promise<void>;
   createCashClosing: (input: NewCashClosingInput) => Promise<void>;
   updateBusinessSettings: (input: NewBusinessSettingsInput) => Promise<void>;
   updateUserRole: (userId: string, role: UserRole) => Promise<void>;
@@ -235,6 +237,11 @@ function safeExpenseStatus(value: unknown): ExpenseStatus {
 function safeVisitStatus(value: unknown): VisitStatus {
   const allowed: VisitStatus[] = ['pendiente', 'visitado', 'pago', 'no-pago', 'no-estaba', 'promesa'];
   return allowed.includes(value as VisitStatus) ? (value as VisitStatus) : 'pendiente';
+}
+
+function safePromiseStatus(value: unknown): PromiseStatus {
+  const allowed: PromiseStatus[] = ['pendiente', 'cumplida', 'incumplida', 'cancelada'];
+  return allowed.includes(value as PromiseStatus) ? (value as PromiseStatus) : 'pendiente';
 }
 
 function sortByCreatedAt<T extends { createdAt: string }>(items: T[]): T[] {
@@ -699,6 +706,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
             estado: safeVisitStatus(data.estado),
             observacion: data.observacion ?? '',
             promesaFecha: data.promesaFecha ?? '',
+            promesaValor: safeNumber(data.promesaValor),
+            promesaEstado: safePromiseStatus(data.promesaEstado),
+            promesaCumplidaEn: data.promesaCumplidaEn ?? '',
             routeId: data.routeId ?? '',
             routeName: data.routeName ?? '',
             assignedToUid: data.assignedToUid ?? '',
@@ -854,6 +864,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       'newCredit',
       'editCredit',
       'reports',
+      'advancedAnalytics',
       'users',
       'audit',
       'businessSettings',
@@ -1410,6 +1421,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
             estado: 'pendiente',
             observacion: '',
             promesaFecha: '',
+            promesaValor: 0,
+            promesaEstado: 'pendiente',
             routeId: client.routeId ?? '',
             routeName: client.routeName ?? '',
             assignedToUid: client.assignedToUid ?? session.uid,
@@ -1427,19 +1440,84 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const updateVisitStatus = async (visitId: string, status: VisitStatus, observacion = '', promesaFecha = '') => {
+  const updateVisitStatus = async (
+    visitId: string,
+    status: VisitStatus,
+    observacion = '',
+    promesaFecha = '',
+    promesaValor = 0,
+    promesaEstado: PromiseStatus = 'pendiente'
+  ) => {
     try {
-      await updateDoc(doc(db, 'visitas', visitId), {
+      const updateData: Record<string, unknown> = {
         estado: status,
         observacion,
-        promesaFecha,
         updatedAt: nowIso()
-      });
+      };
+
+      if (status === 'promesa') {
+        updateData.promesaFecha = promesaFecha;
+        updateData.promesaValor = promesaValor;
+        updateData.promesaEstado = promesaEstado;
+      }
+
+      await updateDoc(doc(db, 'visitas', visitId), updateData);
+
+      if (status === 'promesa') {
+        await addDoc(collection(db, 'auditoria'), {
+          tipo: 'PROMESA_PAGO',
+          descripcion: `Promesa de pago registrada por ${session.email}`,
+          valor: promesaValor,
+          usuarioEmail: session.email,
+          createdAt: nowIso()
+        });
+      }
 
       Alert.alert('Visita actualizada', 'El estado de la visita fue actualizado.');
     } catch (error) {
       console.error('Error actualizando visita:', error);
       Alert.alert('Error Firebase', 'No se pudo actualizar la visita.');
+    }
+  };
+
+  const updatePromiseStatus = async (visitId: string, promesaEstado: PromiseStatus) => {
+    const localVisit = visits.find((visit) => visit.id === visitId);
+
+    if (!localVisit) {
+      Alert.alert('Promesa no encontrada', 'No se encontrÃ³ la promesa seleccionada.');
+      return;
+    }
+
+    if (!isAdmin && localVisit.assignedToUid !== session.uid) {
+      Alert.alert('Acceso restringido', 'Solo puedes actualizar promesas asignadas a tu usuario.');
+      return;
+    }
+
+    try {
+      const updateData: Record<string, unknown> = {
+        promesaEstado,
+        updatedAt: nowIso()
+      };
+
+      if (promesaEstado === 'cumplida') {
+        updateData.promesaCumplidaEn = nowIso();
+      }
+
+      await updateDoc(doc(db, 'visitas', visitId), updateData);
+
+      await addDoc(collection(db, 'auditoria'), {
+        tipo: 'ESTADO_PROMESA',
+        descripcion: `Promesa marcada como ${promesaEstado} por ${session.email}`,
+        clienteId: localVisit.clienteId,
+        valor: localVisit.promesaValor ?? 0,
+        usuarioEmail: session.email,
+        createdAt: nowIso()
+      });
+
+      Alert.alert('Promesa actualizada', `La promesa fue marcada como ${promesaEstado}.`);
+    } catch (error) {
+      console.error('Error actualizando promesa:', error);
+      Alert.alert('Error Firebase', 'No se pudo actualizar la promesa.');
     }
   };
 
@@ -1646,6 +1724,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     addRoute,
     createTodayVisits,
     updateVisitStatus,
+    updatePromiseStatus,
     createCashClosing,
     updateBusinessSettings,
     updateUserRole,

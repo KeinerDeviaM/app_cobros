@@ -13,36 +13,39 @@ export function MoreScreen() {
 
   return (
     <View style={styles.root}>
-      <TopBar title="Más opciones" rightText="⚙️" />
+      <TopBar title="MÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡s opciones" rightText="ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¯ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â" />
 
       <Screen>
         <Card style={styles.profileCard}>
-          <Text style={styles.avatar}>👤</Text>
+          <Text style={styles.avatar}>ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¹Ã…â€œÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¤</Text>
 
           <View style={styles.profileInfo}>
             <Text style={styles.name}>{session.email}</Text>
-            <Text style={styles.role}>{isAdmin ? 'Administrador' : 'Cobrador'} · Firebase Auth</Text>
+            <Text style={styles.role}>{isAdmin ? 'Administrador' : 'Cobrador'} ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· Firebase Auth</Text>
             <Text style={styles.business}>{businessSettings.businessName}</Text>
           </View>
         </Card>
 
-        <Text style={styles.sectionTitle}>Operación diaria</Text>
+        <Text style={styles.sectionTitle}>OperaciÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³n diaria</Text>
         <Card style={styles.menuCard}>
           <Button title="Registrar pago" variant="secondary" onPress={() => navigate('registerPayment')} style={styles.menuButton} />
           <Button title="Visitas de hoy" variant="secondary" onPress={() => navigate('visits')} style={styles.menuButton} />
+          <Button title="Calendario de cobros" variant="secondary" onPress={() => navigate('collectionsCalendar')} style={styles.menuButton} />
+          <Button title="Promesas de pago" variant="secondary" onPress={() => navigate('promises')} style={styles.menuButton} />
           <Button title="Rutas de cobro" variant="secondary" onPress={() => navigate('routes')} style={styles.menuButton} />
           <Button title="Caja diaria" variant="secondary" onPress={() => navigate('dailyCash')} style={styles.menuButton} />
         </Card>
 
         {isAdmin ? (
           <>
-            <Text style={styles.sectionTitle}>Administración</Text>
+            <Text style={styles.sectionTitle}>AdministraciÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³n</Text>
             <Card style={styles.menuCard}>
               <Button title="Reportes" variant="secondary" onPress={() => navigate('reports')} style={styles.menuButton} />
+              <Button title="Indicadores avanzados" variant="secondary" onPress={() => navigate('advancedAnalytics')} style={styles.menuButton} />
               <Button title="Exportar reportes" variant="secondary" onPress={() => navigate('exportReports')} style={styles.menuButton} />
-              <Button title="Gestión de usuarios" variant="secondary" onPress={() => navigate('users')} style={styles.menuButton} />
-              <Button title="Auditoría" variant="secondary" onPress={() => navigate('audit')} style={styles.menuButton} />
-              <Button title="Configuración del negocio" variant="secondary" onPress={() => navigate('businessSettings')} style={styles.menuButton} />
+              <Button title="GestiÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³n de usuarios" variant="secondary" onPress={() => navigate('users')} style={styles.menuButton} />
+              <Button title="AuditorÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­a" variant="secondary" onPress={() => navigate('audit')} style={styles.menuButton} />
+              <Button title="ConfiguraciÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³n del negocio" variant="secondary" onPress={() => navigate('businessSettings')} style={styles.menuButton} />
               <Button title="Checklist antes del APK" variant="secondary" onPress={() => navigate('preApkChecklist')} style={styles.menuButton} />
             </Card>
           </>
@@ -50,13 +53,13 @@ export function MoreScreen() {
 
         <Text style={styles.sectionTitle}>Estado del proyecto</Text>
         <Card>
-          <Text style={styles.stateTitle}>Versión pre-APK</Text>
+          <Text style={styles.stateTitle}>VersiÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³n pre-APK</Text>
           <Text style={styles.stateText}>
-            La app ya incluye clientes, créditos, pagos, recibos, caja, cierres, rutas, visitas, reportes, auditoría, configuración y exportaciones CSV.
+            La app ya incluye clientes, crÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©ditos, pagos, recibos, caja, cierres, rutas, visitas, reportes, auditorÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­a, configuraciÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³n y exportaciones CSV.
           </Text>
         </Card>
 
-        <Button title="Cerrar sesión" variant="danger" onPress={logout} style={styles.logout} />
+        <Button title="Cerrar sesiÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³n" variant="danger" onPress={logout} style={styles.logout} />
       </Screen>
 
       <BottomNav />

@@ -39,10 +39,10 @@ export function CreditDetailScreen() {
   if (!selectedCredit) {
     return (
       <View style={styles.root}>
-        <TopBar title="Detalle crédito" showBack onBack={() => navigate('credits')} />
+        <TopBar title="Detalle crÃ©dito" showBack onBack={() => navigate('credits')} />
         <Screen>
-          <EmptyState title="Crédito no encontrado" message="Vuelve a créditos y selecciona uno." />
-          <Button title="Volver a créditos" onPress={() => navigate('credits')} />
+          <EmptyState title="CrÃ©dito no encontrado" message="Vuelve a crÃ©ditos y selecciona uno." />
+          <Button title="Volver a crÃ©ditos" onPress={() => navigate('credits')} />
         </Screen>
         <BottomNav />
       </View>
@@ -58,15 +58,15 @@ export function CreditDetailScreen() {
 
   const confirmStatus = (status: CreditStatus) => {
     if (selectedCredit.estado === 'anulado') {
-      Alert.alert('Crédito anulado', 'No puedes cambiar el estado de un crédito anulado.');
+      Alert.alert('CrÃ©dito anulado', 'No puedes cambiar el estado de un crÃ©dito anulado.');
       return;
     }
 
     Alert.alert(
       'Cambiar estado',
       status === 'pagado'
-        ? 'Marcar como pagado pondrá el saldo pendiente en $0. ¿Deseas continuar?'
-        : `¿Deseas marcar este crédito como ${status}?`,
+        ? 'Marcar como pagado pondrÃ¡ el saldo pendiente en $0. Â¿Deseas continuar?'
+        : `Â¿Deseas marcar este crÃ©dito como ${status}?`,
       [
         { text: 'Cancelar', style: 'cancel' },
         { text: 'Confirmar', onPress: () => updateCreditStatus(selectedCredit.id, status) }
@@ -76,14 +76,14 @@ export function CreditDetailScreen() {
 
   const confirmCancelCredit = () => {
     Alert.alert(
-      'Anular crédito',
-      'Esta acción marcará el crédito como anulado, pondrá su saldo en $0 y guardará auditoría. No se borrarán los pagos históricos. ¿Deseas continuar?',
+      'Anular crÃ©dito',
+      'Esta acciÃ³n marcarÃ¡ el crÃ©dito como anulado, pondrÃ¡ su saldo en $0 y guardarÃ¡ auditorÃ­a. No se borrarÃ¡n los pagos histÃ³ricos. Â¿Deseas continuar?',
       [
         { text: 'Cancelar', style: 'cancel' },
         {
           text: 'Anular',
           style: 'destructive',
-          onPress: () => cancelCredit(selectedCredit.id, 'Anulación manual desde detalle del crédito')
+          onPress: () => cancelCredit(selectedCredit.id, 'AnulaciÃ³n manual desde detalle del crÃ©dito')
         }
       ]
     );
@@ -91,18 +91,18 @@ export function CreditDetailScreen() {
 
   return (
     <View style={styles.root}>
-      <TopBar title="Detalle crédito" showBack onBack={() => navigate('credits')} />
+      <TopBar title="Detalle crÃ©dito" showBack onBack={() => navigate('credits')} />
       <Screen>
         <Card style={styles.headerCard}>
           <View style={styles.headerTop}>
             <View style={styles.iconBox}>
-              <Text style={styles.icon}>💳</Text>
+              <Text style={styles.icon}>ðŸ’³</Text>
             </View>
 
             <View style={styles.headerInfo}>
               <Text style={styles.clientName}>{client?.nombre ?? 'Cliente no encontrado'}</Text>
-              <Text style={styles.clientMeta}>{client?.telefono ?? 'Sin teléfono'}</Text>
-              <Text style={styles.clientMeta}>{client?.direccion ?? 'Sin dirección'}</Text>
+              <Text style={styles.clientMeta}>{client?.telefono ?? 'Sin telÃ©fono'}</Text>
+              <Text style={styles.clientMeta}>{client?.direccion ?? 'Sin direcciÃ³n'}</Text>
             </View>
 
             <StatusBadge type={statusType} label={selectedCredit.estado} />
@@ -114,7 +114,7 @@ export function CreditDetailScreen() {
 
           {selectedCredit.estado === 'anulado' ? (
             <Text style={styles.cancelWarning}>
-              Este crédito fue anulado. No suma en cartera y no permite nuevos pagos.
+              Este crÃ©dito fue anulado. No suma en cartera y no permite nuevos pagos.
             </Text>
           ) : null}
         </Card>
@@ -144,8 +144,8 @@ export function CreditDetailScreen() {
         </View>
 
         <Card style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>Datos del crédito</Text>
-          <Text style={styles.detail}>Número de cuotas: {selectedCredit.numeroCuotas}</Text>
+          <Text style={styles.sectionTitle}>Datos del crÃ©dito</Text>
+          <Text style={styles.detail}>NÃºmero de cuotas: {selectedCredit.numeroCuotas}</Text>
           <Text style={styles.detail}>Valor cuota: {formatMoney(selectedCredit.valorCuota)}</Text>
           <Text style={styles.detail}>Frecuencia: {selectedCredit.frecuencia}</Text>
           <Text style={styles.detail}>Fecha inicio: {selectedCredit.fechaInicio}</Text>
@@ -154,6 +154,13 @@ export function CreditDetailScreen() {
 
         <Card style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>Acciones</Text>
+
+          <Button
+            title="Ver cuotas"
+            variant="secondary"
+            onPress={() => navigate('installments')}
+            style={styles.actionButton}
+          />
 
           {selectedCredit.estado !== 'anulado' ? (
             <Button
@@ -168,7 +175,7 @@ export function CreditDetailScreen() {
               {selectedCredit.estado !== 'anulado' ? (
                 <>
                   <Button
-                    title="Editar crédito"
+                    title="Editar crÃ©dito"
                     variant="secondary"
                     onPress={() => navigate('editCredit')}
                     style={styles.actionButton}
@@ -196,7 +203,7 @@ export function CreditDetailScreen() {
                   />
 
                   <Button
-                    title="Anular crédito"
+                    title="Anular crÃ©dito"
                     variant="danger"
                     onPress={confirmCancelCredit}
                     style={styles.actionButton}
@@ -207,10 +214,10 @@ export function CreditDetailScreen() {
           ) : null}
         </Card>
 
-        <Text style={styles.blockTitle}>Pagos de este crédito</Text>
+        <Text style={styles.blockTitle}>Pagos de este crÃ©dito</Text>
 
         {creditPayments.length === 0 ? (
-          <EmptyState title="Sin pagos" message="Este crédito todavía no tiene pagos registrados." />
+          <EmptyState title="Sin pagos" message="Este crÃ©dito todavÃ­a no tiene pagos registrados." />
         ) : (
           creditPayments.map((payment) => {
             const isCanceled = payment.estado === 'anulado';
@@ -228,10 +235,10 @@ export function CreditDetailScreen() {
                   />
                 </View>
 
-                <Text style={styles.detail}>Método: {payment.metodoPago}</Text>
+                <Text style={styles.detail}>MÃ©todo: {payment.metodoPago}</Text>
                 <Text style={styles.detail}>Registrado por: {payment.usuarioEmail}</Text>
                 {payment.observacion ? <Text style={styles.detail}>Nota: {payment.observacion}</Text> : null}
-                {isCanceled ? <Text style={styles.detail}>Motivo anulación: {payment.motivoAnulacion || 'Sin motivo'}</Text> : null}
+                {isCanceled ? <Text style={styles.detail}>Motivo anulaciÃ³n: {payment.motivoAnulacion || 'Sin motivo'}</Text> : null}
               </Card>
             );
           })

@@ -6,10 +6,16 @@ import { LoginScreen } from './src/screens/LoginScreen';
 import { DashboardScreen } from './src/screens/DashboardScreen';
 import { ClientsScreen } from './src/screens/ClientsScreen';
 import { ClientDetailScreen } from './src/screens/ClientDetailScreen';
+import { ClientHistoryScreen } from './src/screens/ClientHistoryScreen';
+import { GlobalSearchScreen } from './src/screens/GlobalSearchScreen';
+import { AdvancedAnalyticsScreen } from './src/screens/AdvancedAnalyticsScreen';
 import { EditClientScreen } from './src/screens/EditClientScreen';
 import { NewClientScreen } from './src/screens/NewClientScreen';
 import { CreditsScreen } from './src/screens/CreditsScreen';
 import { CreditDetailScreen } from './src/screens/CreditDetailScreen';
+import { InstallmentsScreen } from './src/screens/InstallmentsScreen';
+import { CollectionsCalendarScreen } from './src/screens/CollectionsCalendarScreen';
+import { PromisesScreen } from './src/screens/PromisesScreen';
 import { EditCreditScreen } from './src/screens/EditCreditScreen';
 import { NewCreditScreen } from './src/screens/NewCreditScreen';
 import { PaymentsScreen } from './src/screens/PaymentsScreen';
@@ -65,6 +71,12 @@ function Root() {
       return <ClientsScreen />;
     case 'clientDetail':
       return <ClientDetailScreen />;
+    case 'clientHistory':
+      return <ClientHistoryScreen />;
+    case 'globalSearch':
+      return <GlobalSearchScreen />;
+    case 'advancedAnalytics':
+      return <AdvancedAnalyticsScreen />;
     case 'editClient':
       return <EditClientScreen />;
     case 'newClient':
@@ -73,6 +85,12 @@ function Root() {
       return <CreditsScreen />;
     case 'creditDetail':
       return <CreditDetailScreen />;
+    case 'installments':
+      return <InstallmentsScreen />;
+    case 'collectionsCalendar':
+      return <CollectionsCalendarScreen />;
+    case 'promises':
+      return <PromisesScreen />;
     case 'editCredit':
       return <EditCreditScreen />;
     case 'newCredit':

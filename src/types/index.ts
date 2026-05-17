@@ -2,9 +2,16 @@ export type ScreenName =
   | 'dashboard'
   | 'clients'
   | 'clientDetail'
+  | 'clientHistory'
+  | 'globalSearch'
+  | 'advancedAnalytics'
+  | 'dataBackup'
   | 'editClient'
   | 'credits'
   | 'creditDetail'
+  | 'installments'
+  | 'collectionsCalendar'
+  | 'promises'
   | 'editCredit'
   | 'payments'
   | 'paymentReceipt'
@@ -32,6 +39,7 @@ export type PaymentMethod = 'Efectivo' | 'Transferencia' | 'Nequi' | 'Daviplata'
 export type PaymentStatus = 'activo' | 'anulado';
 export type ExpenseStatus = 'activo' | 'anulado';
 export type VisitStatus = 'pendiente' | 'visitado' | 'pago' | 'no-pago' | 'no-estaba' | 'promesa';
+export type PromiseStatus = 'pendiente' | 'cumplida' | 'incumplida' | 'cancelada';
 
 export interface Session {
   loggedIn: boolean;
@@ -145,6 +153,9 @@ export interface Visit {
   estado: VisitStatus;
   observacion: string;
   promesaFecha?: string;
+  promesaValor?: number;
+  promesaEstado?: PromiseStatus;
+  promesaCumplidaEn?: string;
   routeId?: string;
   routeName?: string;
   assignedToUid?: string;
