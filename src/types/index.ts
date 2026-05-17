@@ -4,7 +4,9 @@ export type ScreenName =
   | 'clientDetail'
   | 'editClient'
   | 'credits'
+  | 'creditDetail'
   | 'payments'
+  | 'paymentReceipt'
   | 'newClient'
   | 'newCredit'
   | 'registerPayment'
@@ -13,6 +15,10 @@ export type ScreenName =
   | 'users'
   | 'routes'
   | 'visits'
+  | 'audit'
+  | 'businessSettings'
+  | 'exportReports'
+  | 'preApkChecklist'
   | 'more';
 
 export type UserRole = 'admin' | 'cobrador';
@@ -21,6 +27,7 @@ export type ClientStatus = 'al-dia' | 'en-mora';
 export type CreditStatus = 'activo' | 'pagado' | 'vencido';
 export type Frequency = 'Diaria' | 'Semanal' | 'Quincenal' | 'Mensual';
 export type PaymentMethod = 'Efectivo' | 'Transferencia' | 'Nequi' | 'Daviplata' | 'Otro';
+export type PaymentStatus = 'activo' | 'anulado';
 
 export type VisitStatus = 'pendiente' | 'visitado' | 'pago' | 'no-pago' | 'no-estaba' | 'promesa';
 
@@ -59,6 +66,8 @@ export interface Client {
   estado: ClientStatus;
   createdAt: string;
   createdBy?: string;
+  updatedAt?: string;
+  updatedBy?: string;
   assignedToUid?: string;
   assignedToEmail?: string;
   routeId?: string;
@@ -78,6 +87,8 @@ export interface Credit {
   fechaInicio: string;
   createdAt: string;
   createdBy?: string;
+  updatedAt?: string;
+  updatedBy?: string;
   assignedToUid?: string;
   assignedToEmail?: string;
 }
@@ -91,10 +102,16 @@ export interface Payment {
   metodoPago: PaymentMethod;
   fechaPago: string;
   observacion: string;
+  estado: PaymentStatus;
   createdAt: string;
   createdBy?: string;
+  updatedAt?: string;
+  updatedBy?: string;
   assignedToUid?: string;
   assignedToEmail?: string;
+  anuladoPor?: string;
+  anuladoEn?: string;
+  motivoAnulacion?: string;
 }
 
 export interface Expense {
@@ -124,4 +141,55 @@ export interface Visit {
   createdAt: string;
   createdBy?: string;
   updatedAt?: string;
+}
+
+export interface AuditLog {
+  id: string;
+  tipo: string;
+  descripcion: string;
+  pagoId?: string;
+  creditoId?: string;
+  clienteId?: string;
+  valor?: number;
+  usuarioEmail: string;
+  createdAt: string;
+}
+export interface CashClosing {
+  id: string;
+  fecha: string;
+  usuarioEmail: string;
+  usuarioUid: string;
+  totalPagos: number;
+  totalGastos: number;
+  cajaEsperada: number;
+  cajaEntregada: number;
+  diferencia: number;
+  observacion: string;
+  createdAt: string;
+  createdBy?: string;
+}
+export interface PaymentReceipt {
+  id: string;
+  clienteId: string;
+  clienteNombre: string;
+  creditoId: string;
+  valorPagado: number;
+  saldoAnterior: number;
+  saldoNuevo: number;
+  metodoPago: PaymentMethod;
+  fechaPago: string;
+  observacion: string;
+  cobradorEmail: string;
+  createdAt: string;
+}
+export interface BusinessSettings {
+  id: string;
+  businessName: string;
+  appName: string;
+  phone: string;
+  address: string;
+  receiptMessage: string;
+  currency: string;
+  updatedAt?: string;
+  updatedBy?: string;
 }

@@ -39,6 +39,11 @@ service cloud.firestore {
       allow update, delete: if esAdmin();
     }
 
+    match /configuracion/{configId} {
+      allow read: if perfilActivo();
+      allow create, update, delete: if esAdmin();
+    }
+
     match /rutas/{rutaId} {
       allow read: if perfilActivo();
       allow create, update, delete: if esAdmin();
@@ -95,6 +100,22 @@ service cloud.firestore {
         );
 
       allow delete: if esAdmin();
+    }
+
+    match /cierresCaja/{cierreId} {
+      allow read: if esAdmin() || (perfilActivo() && resource.data.usuarioUid == request.auth.uid);
+
+      allow create: if perfilActivo()
+        && request.resource.data.usuarioUid == request.auth.uid
+        && request.resource.data.usuarioEmail == request.auth.token.email;
+
+      allow update, delete: if esAdmin();
+    }
+
+    match /auditoria/{auditoriaId} {
+      allow read: if esAdmin();
+      allow create: if perfilActivo();
+      allow update, delete: if false;
     }
 
     match /{document=**} {

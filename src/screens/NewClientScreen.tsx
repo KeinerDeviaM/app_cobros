@@ -8,10 +8,11 @@ import { Screen } from '../components/Screen';
 import { TopBar } from '../components/TopBar';
 import { useApp } from '../state/AppContext';
 import { colors } from '../theme/colors';
-import { UserProfile } from '../types';
+import { Route, UserProfile } from '../types';
+import { normalizePhone, normalizeText } from '../utils/validation';
 
 export function NewClientScreen() {
-  const { addClient, navigate, users } = useApp();
+  const { addClient, navigate, users, routes, clients } = useApp();
 
   const collectors = useMemo(
     () => users.filter((user) => user.role === 'cobrador' && user.activo),
@@ -24,24 +25,61 @@ export function NewClientScreen() {
   const [direccion, setDireccion] = useState('');
   const [barrio, setBarrio] = useState('');
   const [collector, setCollector] = useState<UserProfile | null>(collectors[0] ?? null);
+  const [route, setRoute] = useState<Route | null>(routes[0] ?? null);
   const [loading, setLoading] = useState(false);
 
   const handleSave = async () => {
-    if (!nombre.trim() || !telefono.trim() || !direccion.trim()) {
+    const cleanNombre = nombre.trim();
+    const cleanDocumento = documento.trim();
+    const cleanTelefono = telefono.trim();
+    const cleanDireccion = direccion.trim();
+    const cleanBarrio = barrio.trim();
+
+    if (!cleanNombre || !cleanTelefono || !cleanDireccion) {
       Alert.alert('Datos incompletos', 'Nombre, teléfono y dirección son obligatorios.');
+      return;
+    }
+
+    if (cleanNombre.length < 3) {
+      Alert.alert('Nombre muy corto', 'El nombre debe tener mínimo 3 caracteres.');
+      return;
+    }
+
+    if (normalizePhone(cleanTelefono).length < 7) {
+      Alert.alert('Teléfono inválido', 'Ingresa un teléfono válido.');
+      return;
+    }
+
+    const duplicatedByDocument = cleanDocumento
+      ? clients.some((client) => normalizeText(client.documento) === normalizeText(cleanDocumento))
+      : false;
+
+    if (duplicatedByDocument) {
+      Alert.alert('Cliente duplicado', 'Ya existe un cliente con ese documento.');
+      return;
+    }
+
+    const duplicatedByPhone = clients.some(
+      (client) => normalizePhone(client.telefono) === normalizePhone(cleanTelefono)
+    );
+
+    if (duplicatedByPhone) {
+      Alert.alert('Teléfono duplicado', 'Ya existe un cliente con ese teléfono.');
       return;
     }
 
     setLoading(true);
 
     await addClient({
-      nombre: nombre.trim(),
-      documento: documento.trim(),
-      telefono: telefono.trim(),
-      direccion: direccion.trim(),
-      barrio: barrio.trim(),
+      nombre: cleanNombre,
+      documento: cleanDocumento,
+      telefono: cleanTelefono,
+      direccion: cleanDireccion,
+      barrio: cleanBarrio,
       assignedToUid: collector?.uid ?? '',
-      assignedToEmail: collector?.email ?? ''
+      assignedToEmail: collector?.email ?? '',
+      routeId: route?.id ?? '',
+      routeName: route?.nombre ?? ''
     });
 
     setLoading(false);
@@ -59,14 +97,10 @@ export function NewClientScreen() {
 
         <Card style={styles.assignCard}>
           <Text style={styles.assignTitle}>Asignar cobrador</Text>
-          <Text style={styles.assignText}>
-            El cobrador seleccionado será quien vea este cliente en su APK.
-          </Text>
+          <Text style={styles.assignText}>El cobrador seleccionado verá este cliente en su APK.</Text>
 
           {collectors.length === 0 ? (
-            <Text style={styles.emptyCollector}>
-              Todavía no hay usuarios cobradores activos. Puedes guardar el cliente y asignarlo después.
-            </Text>
+            <Text style={styles.emptyText}>No hay cobradores activos. Puedes asignarlo después.</Text>
           ) : (
             collectors.map((item) => {
               const selected = collector?.uid === item.uid;
@@ -74,20 +108,46 @@ export function NewClientScreen() {
               return (
                 <Pressable
                   key={item.id}
-                  style={[styles.collectorOption, selected ? styles.collectorSelected : null]}
+                  style={[styles.option, selected ? styles.selectedOption : null]}
                   onPress={() => setCollector(item)}
                 >
-                  <Text style={[styles.collectorEmail, selected ? styles.collectorEmailSelected : null]}>
-                    {item.email}
-                  </Text>
-                  <Text style={styles.collectorRole}>Cobrador activo</Text>
+                  <Text style={[styles.optionTitle, selected ? styles.selectedText : null]}>{item.email}</Text>
+                  <Text style={styles.optionMeta}>Cobrador activo</Text>
                 </Pressable>
               );
             })
           )}
 
-          <Pressable style={styles.unassigned} onPress={() => setCollector(null)}>
-            <Text style={styles.unassignedText}>Dejar sin asignar</Text>
+          <Pressable style={styles.clearButton} onPress={() => setCollector(null)}>
+            <Text style={styles.clearText}>Dejar sin cobrador</Text>
+          </Pressable>
+        </Card>
+
+        <Card style={styles.assignCard}>
+          <Text style={styles.assignTitle}>Asignar ruta</Text>
+          <Text style={styles.assignText}>La ruta ayuda a ordenar el recorrido diario del cobrador.</Text>
+
+          {routes.length === 0 ? (
+            <Text style={styles.emptyText}>No hay rutas creadas. Puedes crearlas desde Más opciones → Rutas de cobro.</Text>
+          ) : (
+            routes.map((item) => {
+              const selected = route?.id === item.id;
+
+              return (
+                <Pressable
+                  key={item.id}
+                  style={[styles.option, selected ? styles.selectedOption : null]}
+                  onPress={() => setRoute(item)}
+                >
+                  <Text style={[styles.optionTitle, selected ? styles.selectedText : null]}>{item.nombre}</Text>
+                  <Text style={styles.optionMeta}>{item.zona || 'Sin zona'}</Text>
+                </Pressable>
+              );
+            })
+          )}
+
+          <Pressable style={styles.clearButton} onPress={() => setRoute(null)}>
+            <Text style={styles.clearText}>Dejar sin ruta</Text>
           </Pressable>
         </Card>
 
@@ -99,31 +159,12 @@ export function NewClientScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: colors.background
-  },
-  assignCard: {
-    marginBottom: 16
-  },
-  assignTitle: {
-    color: colors.text,
-    fontSize: 16,
-    fontWeight: '900'
-  },
-  assignText: {
-    color: colors.muted,
-    marginTop: 6,
-    marginBottom: 12,
-    lineHeight: 20
-  },
-  emptyCollector: {
-    color: colors.danger,
-    fontWeight: '700',
-    lineHeight: 20,
-    marginBottom: 10
-  },
-  collectorOption: {
+  root: { flex: 1, backgroundColor: colors.background },
+  assignCard: { marginBottom: 16 },
+  assignTitle: { color: colors.text, fontSize: 16, fontWeight: '900' },
+  assignText: { color: colors.muted, marginTop: 6, marginBottom: 12, lineHeight: 20 },
+  emptyText: { color: colors.danger, fontWeight: '700', lineHeight: 20, marginBottom: 10 },
+  option: {
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: 14,
@@ -131,29 +172,10 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     backgroundColor: '#FFFFFF'
   },
-  collectorSelected: {
-    borderColor: colors.primary,
-    backgroundColor: colors.primarySoft
-  },
-  collectorEmail: {
-    color: colors.text,
-    fontWeight: '900'
-  },
-  collectorEmailSelected: {
-    color: colors.primary
-  },
-  collectorRole: {
-    color: colors.muted,
-    fontSize: 12,
-    marginTop: 3,
-    fontWeight: '700'
-  },
-  unassigned: {
-    marginTop: 4,
-    alignSelf: 'flex-start'
-  },
-  unassignedText: {
-    color: colors.danger,
-    fontWeight: '900'
-  }
+  selectedOption: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
+  optionTitle: { color: colors.text, fontWeight: '900' },
+  selectedText: { color: colors.primary },
+  optionMeta: { color: colors.muted, fontSize: 12, marginTop: 3, fontWeight: '700' },
+  clearButton: { marginTop: 4, alignSelf: 'flex-start' },
+  clearText: { color: colors.danger, fontWeight: '900' }
 });

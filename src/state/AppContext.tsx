@@ -10,6 +10,7 @@ import {
   query,
   setDoc,
   updateDoc,
+  runTransaction,
   where
 } from 'firebase/firestore';
 import { auth, db } from '../services/firebase';
@@ -21,6 +22,7 @@ import {
   Frequency,
   Payment,
   PaymentMethod,
+  PaymentReceipt,
   Route,
   ScreenName,
   Session,
@@ -72,9 +74,12 @@ type AppContextValue = {
   currentScreen: ScreenName;
   selectedClientId: string;
   selectedClient: Client | undefined;
+  selectedCreditId: string;
+  selectedCredit: Credit | undefined;
   clients: Client[];
   credits: Credit[];
   payments: Payment[];
+  lastReceipt: PaymentReceipt | null;
   expenses: Expense[];
   users: UserProfile[];
   routes: Route[];
@@ -84,11 +89,15 @@ type AppContextValue = {
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   navigate: (screen: ScreenName) => void;
+  clearReceipt: () => void;
   selectClient: (clientId: string) => void;
+  selectCredit: (creditId: string) => void;
   addClient: (input: NewClientInput) => Promise<void>;
   updateClient: (clientId: string, input: UpdateClientInput) => Promise<void>;
   addCredit: (input: NewCreditInput) => Promise<void>;
+  updateCreditStatus: (creditId: string, status: Credit['estado']) => Promise<void>;
   addPayment: (input: NewPaymentInput) => Promise<void>;
+  cancelPayment: (paymentId: string, motivo?: string) => Promise<void>;
   addExpense: (input: NewExpenseInput) => Promise<void>;
   addRoute: (input: NewRouteInput) => Promise<void>;
   createTodayVisits: () => Promise<void>;
@@ -120,6 +129,16 @@ const initialSession: Session = {
   role: 'cobrador'
 };
 
+const defaultBusinessSettings: BusinessSettings = {
+  id: 'negocio',
+  businessName: 'CobroApp',
+  appName: 'CobroApp',
+  phone: '',
+  address: '',
+  receiptMessage: 'Gracias por su pago. Conserve este comprobante.',
+  currency: 'COP'
+};
+
 const AppContext = createContext<AppContextValue | undefined>(undefined);
 
 function safeNumber(value: unknown): number {
@@ -143,14 +162,14 @@ function sortByCreatedAt<T extends { createdAt: string }>(items: T[]): T[] {
 function getAuthErrorMessage(error: unknown): string {
   const code = typeof error === 'object' && error !== null && 'code' in error ? String((error as { code?: string }).code) : '';
 
-  if (code.includes('auth/invalid-credential')) return 'Correo o contraseÃ±a incorrectos.';
+  if (code.includes('auth/invalid-credential')) return 'Correo o contraseÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â±a incorrectos.';
   if (code.includes('auth/user-not-found')) return 'No existe un usuario con ese correo.';
-  if (code.includes('auth/wrong-password')) return 'La contraseÃ±a es incorrecta.';
-  if (code.includes('auth/invalid-email')) return 'El correo no tiene un formato vÃ¡lido.';
-  if (code.includes('auth/too-many-requests')) return 'Demasiados intentos. Intenta mÃ¡s tarde.';
-  if (code.includes('auth/network-request-failed')) return 'No hay conexiÃ³n a internet.';
+  if (code.includes('auth/wrong-password')) return 'La contraseÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â±a es incorrecta.';
+  if (code.includes('auth/invalid-email')) return 'El correo no tiene un formato vÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡lido.';
+  if (code.includes('auth/too-many-requests')) return 'Demasiados intentos. Intenta mÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡s tarde.';
+  if (code.includes('auth/network-request-failed')) return 'No hay conexiÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³n a internet.';
 
-  return 'No se pudo iniciar sesiÃ³n. Revisa los datos.';
+  return 'No se pudo iniciar sesiÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³n. Revisa los datos.';
 }
 
 export function AppProvider({ children }: { children: ReactNode }) {
@@ -158,10 +177,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [authLoading, setAuthLoading] = useState(true);
   const [currentScreen, setCurrentScreen] = useState<ScreenName>('dashboard');
   const [selectedClientId, setSelectedClientId] = useState('');
+  const [selectedCreditId, setSelectedCreditId] = useState('');
 
   const [clients, setClients] = useState<Client[]>([]);
   const [credits, setCredits] = useState<Credit[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
+  const [lastReceipt, setLastReceipt] = useState<PaymentReceipt | null>(null);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [routes, setRoutes] = useState<Route[]>([]);
@@ -176,6 +197,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [clients, selectedClientId]
   );
 
+  const selectedCredit = useMemo(
+    () => credits.find((credit) => credit.id === selectedCreditId),
+    [credits, selectedCreditId]
+  );
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       try {
@@ -184,11 +210,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
           setClients([]);
           setCredits([]);
           setPayments([]);
+          setLastReceipt(null);
           setExpenses([]);
           setUsers([]);
           setRoutes([]);
           setVisits([]);
           setSelectedClientId('');
+          setSelectedCreditId('');
           setCurrentScreen('dashboard');
           setAuthLoading(false);
           return;
@@ -218,7 +246,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
         if (!activo) {
           await signOut(auth);
-          Alert.alert('Usuario inactivo', 'Tu usuario estÃ¡ desactivado. Contacta al administrador.');
+          Alert.alert('Usuario inactivo', 'Tu usuario estÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ desactivado. Contacta al administrador.');
           setAuthLoading(false);
           return;
         }
@@ -393,8 +421,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setCredits(sortByCreatedAt(firebaseCredits));
       },
       (error) => {
-        console.error('Error cargando crÃ©ditos:', error);
-        Alert.alert('Error Firebase', 'No se pudieron cargar los crÃ©ditos.');
+        console.error('Error cargando crÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©ditos:', error);
+        Alert.alert('Error Firebase', 'No se pudieron cargar los crÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©ditos.');
       }
     );
 
@@ -426,7 +454,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
             createdAt: data.createdAt ?? nowIso(),
             createdBy: data.createdBy,
             assignedToUid: data.assignedToUid,
-            assignedToEmail: data.assignedToEmail
+            assignedToEmail: data.assignedToEmail,
+            estado: data.estado ?? 'activo',
+            anuladoPor: data.anuladoPor ?? '',
+            anuladoEn: data.anuladoEn ?? '',
+            motivoAnulacion: data.motivoAnulacion ?? ''
           };
         });
 
@@ -523,10 +555,89 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return unsubscribe;
   }, [session.loggedIn, session.uid, isAdmin]);
 
+
+  useEffect(() => {
+    if (!session.loggedIn || !isAdmin) {
+      setAuditLogs([]);
+      return;
+    }
+
+    const auditQuery = query(collection(db, 'auditoria'));
+
+    const unsubscribe = onSnapshot(
+      auditQuery,
+      (snapshot) => {
+        const firebaseAuditLogs: AuditLog[] = snapshot.docs.map((item) => {
+          const data = item.data() as Omit<AuditLog,
+  BusinessSettings, 'id'>;
+
+          return {
+            id: item.id,
+            tipo: data.tipo ?? '',
+            descripcion: data.descripcion ?? '',
+            pagoId: data.pagoId ?? '',
+            creditoId: data.creditoId ?? '',
+            clienteId: data.clienteId ?? '',
+            valor: safeNumber(data.valor),
+            usuarioEmail: data.usuarioEmail ?? '',
+            createdAt: data.createdAt ?? nowIso()
+          };
+        });
+
+        setAuditLogs(sortByCreatedAt(firebaseAuditLogs));
+      },
+      (error) => {
+        console.error('Error cargando auditoria:', error);
+        Alert.alert('Error Firebase', 'No se pudo cargar la auditorÃ­a.');
+      }
+    );
+
+    return unsubscribe;
+  }, [session.loggedIn, isAdmin]);
+
+  useEffect(() => {
+    if (!session.loggedIn) {
+      setBusinessSettings(defaultBusinessSettings);
+      return;
+    }
+
+    const settingsRef = doc(db, 'configuracion', 'negocio');
+
+    const unsubscribe = onSnapshot(
+      settingsRef,
+      (snapshot) => {
+        if (!snapshot.exists()) {
+          setBusinessSettings(defaultBusinessSettings);
+          return;
+        }
+
+        const data = snapshot.data() as Omit<BusinessSettings, 'id'>;
+
+        setBusinessSettings({
+          id: snapshot.id,
+          businessName: data.businessName || defaultBusinessSettings.businessName,
+          appName: data.appName || defaultBusinessSettings.appName,
+          phone: data.phone || '',
+          address: data.address || '',
+          receiptMessage: data.receiptMessage || defaultBusinessSettings.receiptMessage,
+          currency: data.currency || defaultBusinessSettings.currency,
+          updatedAt: data.updatedAt,
+          updatedBy: data.updatedBy
+        });
+      },
+      (error) => {
+        console.error('Error cargando configuracion del negocio:', error);
+        Alert.alert('Error Firebase', 'No se pudo cargar la configuración del negocio.');
+      }
+    );
+
+    return unsubscribe;
+  }, [session.loggedIn]);
   const stats = useMemo(() => {
     const today = todayKey();
+    const activePayments = payments.filter((payment) => payment.estado !== 'anulado');
 
-    const collectedToday = payments
+    const collectedToday = activePayments
       .filter((payment) => payment.fechaPago === today)
       .reduce((total, payment) => total + payment.valorPagado, 0);
 
@@ -535,7 +646,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       .reduce((total, expense) => total + expense.valor, 0);
 
     const pendingTotal = credits.reduce((total, credit) => total + credit.saldoPendiente, 0);
-    const recoveredTotal = payments.reduce((total, payment) => total + payment.valorPagado, 0);
+    const recoveredTotal = activePayments.reduce((total, payment) => total + payment.valorPagado, 0);
     const lentTotal = credits.reduce((total, credit) => total + credit.valorPrestado, 0);
 
     return {
@@ -567,7 +678,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setCurrentScreen('dashboard');
     } catch (error) {
       console.error('Error login:', error);
-      Alert.alert('No se pudo iniciar sesiÃ³n', getAuthErrorMessage(error));
+      Alert.alert('No se pudo iniciar sesiÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³n', getAuthErrorMessage(error));
     }
   };
 
@@ -576,11 +687,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setCurrentScreen('dashboard');
   };
 
+  const clearReceipt = () => setLastReceipt(null);
+
   const navigate = (screen: ScreenName) => {
     const adminOnlyScreens: ScreenName[] = ['newClient', 'newCredit', 'reports', 'users'];
 
     if (adminOnlyScreens.includes(screen) && !isAdmin) {
-      Alert.alert('Acceso restringido', 'Esta secciÃ³n solo estÃ¡ disponible para administradores.');
+      Alert.alert('Acceso restringido', 'Esta secciÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³n solo estÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ disponible para administradores.');
       return;
     }
 
@@ -590,6 +703,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const selectClient = (clientId: string) => {
     setSelectedClientId(clientId);
     setCurrentScreen('clientDetail');
+  };
+
+  const selectCredit = (creditId: string) => {
+    setSelectedCreditId(creditId);
+    setCurrentScreen('creditDetail');
   };
 
   const addClient = async (input: NewClientInput) => {
@@ -646,7 +764,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   };
   const addCredit = async (input: NewCreditInput) => {
     if (!isAdmin) {
-      Alert.alert('Acceso restringido', 'Solo un administrador puede crear crÃ©ditos.');
+      Alert.alert('Acceso restringido', 'Solo un administrador puede crear crÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©ditos.');
       return;
     }
 
@@ -665,20 +783,48 @@ export function AppProvider({ children }: { children: ReactNode }) {
         assignedToEmail: client?.assignedToEmail ?? ''
       });
 
-      Alert.alert('CrÃ©dito creado', 'El crÃ©dito fue creado correctamente.');
+      Alert.alert('CrÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©dito creado', 'El crÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©dito fue creado correctamente.');
       setCurrentScreen('credits');
     } catch (error) {
-      console.error('Error creando crÃ©dito:', error);
-      Alert.alert('Error Firebase', 'No se pudo crear el crÃ©dito.');
+      console.error('Error creando crÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©dito:', error);
+      Alert.alert('Error Firebase', 'No se pudo crear el crÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©dito.');
     }
   };
 
+
+  const updateCreditStatus = async (creditId: string, status: Credit['estado']) => {
+    if (!isAdmin) {
+      Alert.alert('Acceso restringido', 'Solo un administrador puede cambiar el estado del crÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â©dito.');
+      return;
+    }
+
+    try {
+      const updateData: Partial<Credit> = {
+        estado: status
+      };
+
+      if (status === 'pagado') {
+        updateData.saldoPendiente = 0;
+      }
+
+      await updateDoc(doc(db, 'creditos', creditId), {
+        ...updateData,
+        updatedAt: nowIso(),
+        updatedBy: session.email
+      });
+
+      Alert.alert('CrÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â©dito actualizado', `El crÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â©dito fue marcado como ${status}.`);
+    } catch (error) {
+      console.error('Error actualizando crÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â©dito:', error);
+      Alert.alert('Error Firebase', 'No se pudo actualizar el crÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â©dito.');
+    }
+  };
   const addPayment = async (input: NewPaymentInput) => {
     try {
       const credit = credits.find((item) => item.id === input.creditoId);
 
       if (!credit) {
-        Alert.alert('CrÃ©dito no encontrado', 'Selecciona un crÃ©dito vÃ¡lido.');
+        Alert.alert('CrÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©dito no encontrado', 'Selecciona un crÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©dito vÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡lido.');
         return;
       }
 
@@ -692,7 +838,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         createdAt: nowIso(),
         createdBy: session.email,
         assignedToUid: credit.assignedToUid ?? session.uid,
-        assignedToEmail: credit.assignedToEmail ?? session.email
+        assignedToEmail: credit.assignedToEmail ?? session.email,
+        estado: 'activo'
       });
 
       await updateDoc(doc(db, 'creditos', credit.id), {
@@ -700,7 +847,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         estado: nextStatus
       });
 
-      Alert.alert('Pago registrado', 'El saldo del crÃ©dito fue actualizado.');
+      Alert.alert('Pago registrado', 'El saldo del crÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©dito fue actualizado.');
       setCurrentScreen('payments');
     } catch (error) {
       console.error('Error registrando pago:', error);
@@ -708,6 +855,100 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   };
 
+
+  const cancelPayment = async (paymentId: string, motivo = 'AnulaciÃƒÆ’Ã‚Â³n desde app') => {
+    if (!isAdmin) {
+      Alert.alert('Acceso restringido', 'Solo un administrador puede anular pagos.');
+      return;
+    }
+
+    const localPayment = payments.find((payment) => payment.id === paymentId);
+
+    if (!localPayment) {
+      Alert.alert('Pago no encontrado', 'No se encontrÃƒÆ’Ã‚Â³ el pago que quieres anular.');
+      return;
+    }
+
+    if (localPayment.estado === 'anulado') {
+      Alert.alert('Pago ya anulado', 'Este pago ya fue anulado anteriormente.');
+      return;
+    }
+
+    try {
+      await runTransaction(db, async (transaction) => {
+        const paymentRef = doc(db, 'pagos', paymentId);
+        const creditRef = doc(db, 'creditos', localPayment.creditoId);
+        const auditRef = doc(collection(db, 'auditoria'));
+
+        const paymentSnap = await transaction.get(paymentRef);
+        const creditSnap = await transaction.get(creditRef);
+
+        if (!paymentSnap.exists()) {
+          throw new Error('El pago no existe en Firebase.');
+        }
+
+        if (!creditSnap.exists()) {
+          throw new Error('El crÃƒÆ’Ã‚Â©dito asociado no existe en Firebase.');
+        }
+
+        const paymentData = paymentSnap.data();
+        const creditData = creditSnap.data();
+
+        if (paymentData.estado === 'anulado') {
+          throw new Error('El pago ya estÃƒÆ’Ã‚Â¡ anulado.');
+        }
+
+        const valorPagado = Number(paymentData.valorPagado || 0);
+        const saldoActual = Number(creditData.saldoPendiente || 0);
+        const valorTotal = Number(creditData.valorTotal || 0);
+
+        const saldoDevuelto = valorTotal > 0
+          ? Math.min(valorTotal, saldoActual + valorPagado)
+          : saldoActual + valorPagado;
+
+        const nuevoEstadoCredito = saldoDevuelto === 0
+          ? 'pagado'
+          : creditData.estado === 'vencido'
+            ? 'vencido'
+            : 'activo';
+
+        const fecha = nowIso();
+
+        transaction.update(paymentRef, {
+          estado: 'anulado',
+          anuladoPor: session.email,
+          anuladoEn: fecha,
+          motivoAnulacion: motivo,
+          updatedAt: fecha,
+          updatedBy: session.email
+        });
+
+        transaction.update(creditRef, {
+          saldoPendiente: saldoDevuelto,
+          estado: nuevoEstadoCredito,
+          updatedAt: fecha,
+          updatedBy: session.email
+        });
+
+        transaction.set(auditRef, {
+          tipo: 'ANULAR_PAGO',
+          descripcion: `Pago anulado por ${session.email}`,
+          pagoId: paymentId,
+          creditoId: localPayment.creditoId,
+          clienteId: localPayment.clienteId,
+          valor: valorPagado,
+          motivo,
+          usuarioEmail: session.email,
+          createdAt: fecha
+        });
+      });
+
+      Alert.alert('Pago anulado', 'El pago fue anulado y el saldo del crÃƒÆ’Ã‚Â©dito fue actualizado.');
+    } catch (error) {
+      console.error('Error anulando pago:', error);
+      Alert.alert('Error Firebase', 'No se pudo anular el pago.');
+    }
+  };
   const addExpense = async (input: NewExpenseInput) => {
     try {
       await addDoc(collection(db, 'gastos'), {
@@ -820,6 +1061,33 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   };
 
+
+  const updateBusinessSettings = async (input: NewBusinessSettingsInput) => {
+    if (!isAdmin) {
+      Alert.alert('Acceso restringido', 'Solo un administrador puede editar la configuración del negocio.');
+      return;
+    }
+
+    try {
+      await setDoc(doc(db, 'configuracion', 'negocio'), {
+        ...input,
+        updatedAt: nowIso(),
+        updatedBy: session.email
+      }, { merge: true });
+
+      await addDoc(collection(db, 'auditoria'), {
+        tipo: 'CONFIG_NEGOCIO',
+        descripcion: `Configuración del negocio actualizada por ${session.email}`,
+        usuarioEmail: session.email,
+        createdAt: nowIso()
+      });
+
+      Alert.alert('Configuración guardada', 'Los datos del negocio fueron actualizados.');
+    } catch (error) {
+      console.error('Error guardando configuración:', error);
+      Alert.alert('Error Firebase', 'No se pudo guardar la configuración.');
+    }
+  };
   const updateUserRole = async (userId: string, role: UserRole) => {
     if (!isAdmin) {
       Alert.alert('Acceso restringido', 'Solo un administrador puede cambiar roles.');
@@ -827,7 +1095,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
 
     if (userId === session.uid && role !== 'admin') {
-      Alert.alert('AcciÃ³n no permitida', 'No puedes quitarte tu propio rol de administrador.');
+      Alert.alert('AcciÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³n no permitida', 'No puedes quitarte tu propio rol de administrador.');
       return;
     }
 
@@ -847,7 +1115,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
 
     if (userId === session.uid && !activo) {
-      Alert.alert('AcciÃ³n no permitida', 'No puedes desactivar tu propio usuario.');
+      Alert.alert('AcciÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³n no permitida', 'No puedes desactivar tu propio usuario.');
       return;
     }
 
@@ -873,8 +1141,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       });
 
       Alert.alert(
-        'AsignaciÃ³n actualizada',
-        collector ? `Cliente asignado a ${collector.email}.` : 'Cliente quedÃ³ sin cobrador asignado.'
+        'AsignaciÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³n actualizada',
+        collector ? `Cliente asignado a ${collector.email}.` : 'Cliente quedÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³ sin cobrador asignado.'
       );
     } catch (error) {
       console.error('Error asignando cliente:', error);
@@ -896,7 +1164,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       Alert.alert(
         'Ruta actualizada',
-        route ? `Cliente asignado a la ruta ${route.nombre}.` : 'Cliente quedÃ³ sin ruta.'
+        route ? `Cliente asignado a la ruta ${route.nombre}.` : 'Cliente quedÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³ sin ruta.'
       );
     } catch (error) {
       console.error('Error asignando ruta:', error);
@@ -912,7 +1180,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       Alert.alert(
         'Estado actualizado',
-        status === 'al-dia' ? 'El cliente quedÃ³ marcado como Al dÃ­a.' : 'El cliente quedÃ³ marcado como En mora.'
+        status === 'al-dia' ? 'El cliente quedÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³ marcado como Al dÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­a.' : 'El cliente quedÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³ marcado como En mora.'
       );
     } catch (error) {
       console.error('Error cambiando estado:', error);
@@ -938,11 +1206,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
     login,
     logout,
     navigate,
+    clearReceipt,
     selectClient,
+    selectCredit,
     addClient,
     updateClient,
     addCredit,
+    updateCreditStatus,
     addPayment,
+    cancelPayment,
     addExpense,
     addRoute,
     createTodayVisits,

@@ -1,55 +1,92 @@
-import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { BottomNav } from '../components/BottomNav';
 import { Button } from '../components/Button';
 import { Card } from '../components/Card';
 import { EmptyState } from '../components/EmptyState';
+import { Input } from '../components/Input';
 import { Screen } from '../components/Screen';
 import { StatusBadge } from '../components/StatusBadge';
 import { TopBar } from '../components/TopBar';
 import { useApp } from '../state/AppContext';
 import { colors } from '../theme/colors';
-import { displayDate } from '../utils/date';
 import { formatMoney } from '../utils/money';
 
 export function CreditsScreen() {
-  const { credits, getClientName, navigate } = useApp();
+  const { credits, getClientName, navigate, selectCredit, isAdmin } = useApp();
+  const [search, setSearch] = useState('');
+
+  const filtered = useMemo(() => {
+    const query = search.trim().toLowerCase();
+
+    if (!query) return credits;
+
+    return credits.filter((credit) =>
+      [
+        getClientName(credit.clienteId),
+        credit.estado,
+        credit.frecuencia,
+        credit.assignedToEmail
+      ]
+        .join(' ')
+        .toLowerCase()
+        .includes(query)
+    );
+  }, [credits, getClientName, search]);
 
   return (
     <View style={styles.root}>
-      <TopBar title="Creditos" rightText="+" onRightPress={() => navigate('newCredit')} />
+      <TopBar title="Créditos" rightText={isAdmin ? '+' : undefined} onRightPress={isAdmin ? () => navigate('newCredit') : undefined} />
       <Screen>
-        {credits.length === 0 ? (
-          <EmptyState title="Sin creditos" message="Crea el primer credito para comenzar." />
+        <Input
+          label="Buscar crédito"
+          icon="🔎"
+          value={search}
+          onChangeText={setSearch}
+          placeholder="Buscar por cliente, estado o cobrador"
+        />
+
+        {filtered.length === 0 ? (
+          <EmptyState title="Sin créditos" message="No hay créditos con ese filtro." />
         ) : (
-          credits.map((credit) => (
-            <Card key={credit.id} style={styles.card}>
-              <View style={styles.header}>
-                <View style={styles.iconBox}><Text style={styles.icon}>📋</Text></View>
-                <View style={styles.headerInfo}>
-                  <Text style={styles.client}>{getClientName(credit.clienteId)}</Text>
-                  <Text style={styles.meta}>{credit.frecuencia} · inicio {displayDate(credit.fechaInicio)}</Text>
-                </View>
-                <StatusBadge
-                  type={credit.estado === 'pagado' ? 'success' : credit.estado === 'vencido' ? 'danger' : 'warning'}
-                  label={credit.estado === 'pagado' ? 'Pagado' : credit.estado === 'vencido' ? 'Vencido' : 'Activo'}
-                />
-              </View>
-              <View style={styles.amountRow}>
-                <View>
-                  <Text style={styles.small}>Prestado</Text>
-                  <Text style={styles.amount}>{formatMoney(credit.valorPrestado)}</Text>
-                </View>
-                <View>
-                  <Text style={styles.small}>Saldo</Text>
-                  <Text style={[styles.amount, styles.pending]}>{formatMoney(credit.saldoPendiente)}</Text>
-                </View>
-              </View>
-              <Text style={styles.installment}>Cuota sugerida: {formatMoney(credit.valorCuota)} · {credit.numeroCuotas} cuotas</Text>
-            </Card>
-          ))
+          filtered.map((credit) => {
+            const statusType =
+              credit.estado === 'pagado'
+                ? 'success'
+                : credit.estado === 'vencido'
+                  ? 'danger'
+                  : 'warning';
+
+            return (
+              <Pressable key={credit.id} onPress={() => selectCredit(credit.id)}>
+                <Card style={styles.creditCard}>
+                  <View style={styles.row}>
+                    <View style={styles.info}>
+                      <Text style={styles.clientName}>{getClientName(credit.clienteId)}</Text>
+                      <Text style={styles.meta}>Prestado: {formatMoney(credit.valorPrestado)}</Text>
+                      <Text style={styles.meta}>Total: {formatMoney(credit.valorTotal)}</Text>
+                      <Text style={styles.balance}>Saldo: {formatMoney(credit.saldoPendiente)}</Text>
+                    </View>
+
+                    <StatusBadge type={statusType} label={credit.estado} />
+                  </View>
+
+                  <View style={styles.footer}>
+                    <Text style={styles.footerText}>Cuota: {formatMoney(credit.valorCuota)}</Text>
+                    <Text style={styles.footerText}>{credit.frecuencia}</Text>
+                  </View>
+
+                  <Text style={styles.collector}>Cobrador: {credit.assignedToEmail || 'Sin asignar'}</Text>
+                  <Text style={styles.openText}>Tocar para ver detalle</Text>
+                </Card>
+              </Pressable>
+            );
+          })
         )}
-        <Button title="Crear nuevo credito" onPress={() => navigate('newCredit')} style={styles.button} />
+
+        {isAdmin ? (
+          <Button title="Crear nuevo crédito" onPress={() => navigate('newCredit')} style={styles.button} />
+        ) : null}
       </Screen>
       <BottomNav />
     </View>
@@ -57,18 +94,61 @@ export function CreditsScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.background },
-  card: { marginBottom: 12 },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  iconBox: { width: 42, height: 42, borderRadius: 14, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
-  icon: { fontSize: 20 },
-  headerInfo: { flex: 1 },
-  client: { color: colors.text, fontWeight: '900', fontSize: 16 },
-  meta: { color: colors.muted, fontSize: 12, marginTop: 2 },
-  amountRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 18 },
-  small: { color: colors.muted, fontSize: 12, fontWeight: '700' },
-  amount: { color: colors.text, fontSize: 17, fontWeight: '900', marginTop: 3 },
-  pending: { color: colors.danger },
-  installment: { color: colors.muted, marginTop: 14, fontWeight: '700' },
-  button: { marginTop: 8 }
+  root: {
+    flex: 1,
+    backgroundColor: colors.background
+  },
+  creditCard: {
+    marginBottom: 12
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10
+  },
+  info: {
+    flex: 1
+  },
+  clientName: {
+    color: colors.text,
+    fontWeight: '900',
+    fontSize: 16
+  },
+  meta: {
+    color: colors.muted,
+    fontWeight: '700',
+    marginTop: 4
+  },
+  balance: {
+    color: colors.danger,
+    fontWeight: '900',
+    marginTop: 5
+  },
+  footer: {
+    marginTop: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 10,
+    backgroundColor: colors.background,
+    borderRadius: 12,
+    padding: 10
+  },
+  footerText: {
+    color: colors.muted,
+    fontWeight: '800'
+  },
+  collector: {
+    color: colors.primary,
+    fontWeight: '800',
+    marginTop: 10
+  },
+  openText: {
+    color: colors.muted,
+    fontWeight: '700',
+    marginTop: 4,
+    fontSize: 12
+  },
+  button: {
+    marginTop: 10
+  }
 });

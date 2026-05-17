@@ -9,14 +9,20 @@ import { ClientDetailScreen } from './src/screens/ClientDetailScreen';
 import { EditClientScreen } from './src/screens/EditClientScreen';
 import { NewClientScreen } from './src/screens/NewClientScreen';
 import { CreditsScreen } from './src/screens/CreditsScreen';
+import { CreditDetailScreen } from './src/screens/CreditDetailScreen';
 import { NewCreditScreen } from './src/screens/NewCreditScreen';
 import { PaymentsScreen } from './src/screens/PaymentsScreen';
+import { PaymentReceiptScreen } from './src/screens/PaymentReceiptScreen';
 import { RegisterPaymentScreen } from './src/screens/RegisterPaymentScreen';
 import { DailyCashScreen } from './src/screens/DailyCashScreen';
 import { ReportsScreen } from './src/screens/ReportsScreen';
 import { UsersScreen } from './src/screens/UsersScreen';
 import { RoutesScreen } from './src/screens/RoutesScreen';
 import { VisitsScreen } from './src/screens/VisitsScreen';
+import { AuditScreen } from './src/screens/AuditScreen';
+import { BusinessSettingsScreen } from './src/screens/BusinessSettingsScreen';
+import { ExportReportsScreen } from './src/screens/ExportReportsScreen';
+import { PreApkChecklistScreen } from './src/screens/PreApkChecklistScreen';
 import { MoreScreen } from './src/screens/MoreScreen';
 import { colors } from './src/theme/colors';
 
@@ -35,7 +41,19 @@ function Root() {
   if (authLoading) return <LoadingScreen />;
   if (!session.loggedIn) return <LoginScreen />;
 
-  if (!isAdmin && ['newClient', 'editClient', 'newCredit', 'reports', 'users'].includes(currentScreen)) {
+  const adminOnlyScreens = [
+    'newClient',
+    'editClient',
+    'newCredit',
+    'reports',
+    'users',
+    'audit',
+    'businessSettings',
+    'exportReports',
+    'preApkChecklist'
+  ];
+
+  if (!isAdmin && adminOnlyScreens.includes(currentScreen)) {
     return <DashboardScreen />;
   }
 
@@ -50,10 +68,14 @@ function Root() {
       return <NewClientScreen />;
     case 'credits':
       return <CreditsScreen />;
+    case 'creditDetail':
+      return <CreditDetailScreen />;
     case 'newCredit':
       return <NewCreditScreen />;
     case 'payments':
       return <PaymentsScreen />;
+    case 'paymentReceipt':
+      return <PaymentReceiptScreen />;
     case 'registerPayment':
       return <RegisterPaymentScreen />;
     case 'dailyCash':
@@ -66,6 +88,14 @@ function Root() {
       return <RoutesScreen />;
     case 'visits':
       return <VisitsScreen />;
+    case 'audit':
+      return <AuditScreen />;
+    case 'businessSettings':
+      return <BusinessSettingsScreen />;
+    case 'exportReports':
+      return <ExportReportsScreen />;
+    case 'preApkChecklist':
+      return <PreApkChecklistScreen />;
     case 'more':
       return <MoreScreen />;
     case 'dashboard':

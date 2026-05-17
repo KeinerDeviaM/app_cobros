@@ -29,12 +29,16 @@ export function ReportsScreen() {
 
   const today = todayKey();
 
+  const activePayments = useMemo(() => {
+    return activePayments.filter((payment) => payment.estado !== 'anulado');
+  }, [payments]);
+
   const collectors = useMemo(() => {
     return users.filter((user) => user.role === 'cobrador');
   }, [users]);
 
   const todayPayments = useMemo(() => {
-    return payments.filter((payment) => payment.fechaPago === today);
+    return activePayments.filter((payment) => payment.fechaPago === today);
   }, [payments, today]);
 
   const todayExpenses = useMemo(() => {
@@ -49,8 +53,8 @@ export function ReportsScreen() {
     return collectors.map((collector) => {
       const collectorClients = clients.filter((client) => client.assignedToUid === collector.uid);
       const collectorCredits = credits.filter((credit) => credit.assignedToUid === collector.uid);
-      const collectorPayments = payments.filter((payment) => payment.assignedToUid === collector.uid);
-      const collectorPaymentsToday = todayPayments.filter((payment) => payment.assignedToUid === collector.uid);
+      const collectorPayments = activePayments.filter((payment) => payment.assignedToUid === collector.uid);
+      const collectorPaymentsToday = todayactivePayments.filter((payment) => payment.assignedToUid === collector.uid);
       const collectorVisitsToday = todayVisits.filter((visit) => visit.assignedToUid === collector.uid);
 
       const pending = collectorCredits.reduce((total, credit) => total + credit.saldoPendiente, 0);
@@ -70,15 +74,15 @@ export function ReportsScreen() {
         promises: collectorVisitsToday.filter((visit) => visit.estado === 'promesa').length
       };
     });
-  }, [clients, collectors, credits, payments, todayPayments, todayVisits]);
+  }, [clients, collectors, credits, activePayments, todayPayments, todayVisits]);
 
   const routeReports = useMemo(() => {
     return routes.map((route) => {
       const routeClients = clients.filter((client) => client.routeId === route.id);
       const routeClientIds = new Set(routeClients.map((client) => client.id));
       const routeCredits = credits.filter((credit) => routeClientIds.has(credit.clienteId));
-      const routePayments = payments.filter((payment) => routeClientIds.has(payment.clienteId));
-      const routePaymentsToday = todayPayments.filter((payment) => routeClientIds.has(payment.clienteId));
+      const routePayments = activePayments.filter((payment) => routeClientIds.has(payment.clienteId));
+      const routePaymentsToday = todayactivePayments.filter((payment) => routeClientIds.has(payment.clienteId));
       const routeVisitsToday = todayVisits.filter((visit) => visit.routeId === route.id);
 
       const pending = routeCredits.reduce((total, credit) => total + credit.saldoPendiente, 0);
@@ -99,7 +103,7 @@ export function ReportsScreen() {
         promises: routeVisitsToday.filter((visit) => visit.estado === 'promesa').length
       };
     });
-  }, [clients, credits, payments, routes, todayPayments, todayVisits]);
+  }, [clients, credits, activePayments, routes, todayPayments, todayVisits]);
 
   const visitSummary = useMemo(() => {
     return {
@@ -140,7 +144,7 @@ export function ReportsScreen() {
             </View>
 
             <View style={styles.grid}>
-              <ReportMetric title="Créditos activos" value={String(stats.activeCredits)} />
+              <ReportMetric title="CrÃ©ditos activos" value={String(stats.activeCredits)} />
               <ReportMetric title="Pendiente total" value={formatMoney(stats.pendingTotal)} danger />
             </View>
 
@@ -171,7 +175,7 @@ export function ReportsScreen() {
             </Card>
 
             <Card style={styles.sectionCard}>
-              <Text style={styles.sectionTitle}>Resumen rápido</Text>
+              <Text style={styles.sectionTitle}>Resumen rÃ¡pido</Text>
               <Text style={styles.paragraph}>
                 La cartera pendiente actual es de {formatMoney(stats.pendingTotal)}. Hoy se han recaudado {formatMoney(todayPaymentTotal)} y se han registrado gastos por {formatMoney(todayExpenseTotal)}.
               </Text>
@@ -182,7 +186,7 @@ export function ReportsScreen() {
         {tab === 'cobradores' ? (
           <>
             {collectorReports.length === 0 ? (
-              <EmptyState title="Sin cobradores" message="Todavía no hay usuarios con rol cobrador." />
+              <EmptyState title="Sin cobradores" message="TodavÃ­a no hay usuarios con rol cobrador." />
             ) : (
               collectorReports.map((report) => (
                 <Card key={report.collector.id} style={styles.sectionCard}>
@@ -193,7 +197,7 @@ export function ReportsScreen() {
 
                   <View style={styles.miniGrid}>
                     <MiniMetric title="Clientes" value={String(report.clients)} />
-                    <MiniMetric title="Créditos" value={String(report.activeCredits)} />
+                    <MiniMetric title="CrÃ©ditos" value={String(report.activeCredits)} />
                     <MiniMetric title="Cobrado hoy" value={formatMoney(report.collectedToday)} />
                     <MiniMetric title="Pendiente" value={formatMoney(report.pending)} danger />
                   </View>
@@ -226,7 +230,7 @@ export function ReportsScreen() {
         {tab === 'rutas' ? (
           <>
             {routeReports.length === 0 ? (
-              <EmptyState title="Sin rutas" message="Todavía no hay rutas creadas." />
+              <EmptyState title="Sin rutas" message="TodavÃ­a no hay rutas creadas." />
             ) : (
               routeReports.map((report) => (
                 <Card key={report.route.id} style={styles.sectionCard}>
@@ -247,7 +251,7 @@ export function ReportsScreen() {
                   </View>
 
                   <View style={styles.row}>
-                    <Text style={styles.rowLabel}>Créditos activos</Text>
+                    <Text style={styles.rowLabel}>CrÃ©ditos activos</Text>
                     <Text style={styles.rowValue}>{report.activeCredits}</Text>
                   </View>
 
@@ -294,7 +298,7 @@ export function ReportsScreen() {
             </View>
 
             <Card style={styles.sectionCard}>
-              <Text style={styles.sectionTitle}>Lectura del día</Text>
+              <Text style={styles.sectionTitle}>Lectura del dÃ­a</Text>
               <Text style={styles.paragraph}>
                 Hoy se han gestionado {visitSummary.total - visitSummary.pending} de {visitSummary.total} visitas. Hay {visitSummary.promises} promesas de pago registradas y {visitSummary.pending} visitas pendientes.
               </Text>
