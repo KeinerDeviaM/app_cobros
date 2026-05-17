@@ -12,6 +12,7 @@ export type ScreenName =
   | 'newCredit'
   | 'registerPayment'
   | 'dailyCash'
+  | 'editExpense'
   | 'reports'
   | 'users'
   | 'routes'
@@ -29,6 +30,7 @@ export type CreditStatus = 'activo' | 'pagado' | 'vencido' | 'anulado';
 export type Frequency = 'Diaria' | 'Semanal' | 'Quincenal' | 'Mensual';
 export type PaymentMethod = 'Efectivo' | 'Transferencia' | 'Nequi' | 'Daviplata' | 'Otro';
 export type PaymentStatus = 'activo' | 'anulado';
+export type ExpenseStatus = 'activo' | 'anulado';
 export type VisitStatus = 'pendiente' | 'visitado' | 'pago' | 'no-pago' | 'no-estaba' | 'promesa';
 
 export interface Session {
@@ -122,8 +124,14 @@ export interface Expense {
   descripcion: string;
   valor: number;
   fecha: string;
+  estado: ExpenseStatus;
   createdAt: string;
   createdBy?: string;
+  updatedAt?: string;
+  updatedBy?: string;
+  anuladoPor?: string;
+  anuladoEn?: string;
+  motivoAnulacion?: string;
 }
 
 export interface Visit {

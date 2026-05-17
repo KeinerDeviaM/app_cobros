@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { BottomNav } from '../components/BottomNav';
 import { Button } from '../components/Button';
 import { Card } from '../components/Card';
@@ -21,6 +21,7 @@ export function DailyCashScreen() {
     cashClosings,
     addExpense,
     createCashClosing,
+    selectExpense,
     session,
     isAdmin
   } = useApp();
@@ -52,6 +53,10 @@ export function DailyCashScreen() {
     });
   }, [closingDate, expenses, isAdmin, session.email]);
 
+  const activeExpenses = useMemo(() => {
+    return filteredExpenses.filter((expense) => expense.estado !== 'anulado');
+  }, [filteredExpenses]);
+
   const closingsForDate = useMemo(() => {
     return cashClosings.filter((closing) => {
       const sameDate = closing.fecha === closingDate;
@@ -68,26 +73,26 @@ export function DailyCashScreen() {
   }, [cashClosings, closingDate, session.uid]);
 
   const totalPayments = filteredPayments.reduce((total, payment) => total + payment.valorPagado, 0);
-  const totalExpenses = filteredExpenses.reduce((total, expense) => total + expense.valor, 0);
+  const totalExpenses = activeExpenses.reduce((total, expense) => total + expense.valor, 0);
   const expectedCash = totalPayments - totalExpenses;
   const deliveredNumber = parseMoney(cashDelivered);
   const difference = Number.isFinite(deliveredNumber) ? deliveredNumber - expectedCash : 0;
 
   const handleAddExpense = async () => {
     if (!isValidDateKey(closingDate)) {
-      Alert.alert('Fecha inválida', 'La fecha debe tener formato YYYY-MM-DD.');
+      Alert.alert('Fecha invalida', 'La fecha debe tener formato YYYY-MM-DD.');
       return;
     }
 
     if (!expenseDescription.trim()) {
-      Alert.alert('Descripción requerida', 'Escribe el motivo del gasto.');
+      Alert.alert('Descripcion requerida', 'Escribe el motivo del gasto.');
       return;
     }
 
     const value = parseMoney(expenseValue);
 
     if (!isPositiveMoney(value)) {
-      Alert.alert('Valor inválido', 'Ingresa un valor válido para el gasto.');
+      Alert.alert('Valor invalido', 'Ingresa un valor valido para el gasto.');
       return;
     }
 
@@ -106,7 +111,7 @@ export function DailyCashScreen() {
 
   const handleCloseCash = async () => {
     if (!isValidDateKey(closingDate)) {
-      Alert.alert('Fecha inválida', 'La fecha debe tener formato YYYY-MM-DD.');
+      Alert.alert('Fecha invalida', 'La fecha debe tener formato YYYY-MM-DD.');
       return;
     }
 
@@ -116,17 +121,17 @@ export function DailyCashScreen() {
     }
 
     if (!Number.isFinite(deliveredNumber) || deliveredNumber < 0) {
-      Alert.alert('Valor inválido', 'Ingresa un valor válido para la caja entregada.');
+      Alert.alert('Valor invalido', 'Ingresa un valor valido para la caja entregada.');
       return;
     }
 
     if (currentUserClosingsForDate.length > 0) {
       Alert.alert(
         'Caja ya cerrada',
-        'Ya existe un cierre de caja para tu usuario en esta fecha. Puedes guardar otro cierre solo si es una corrección.',
+        'Ya existe un cierre de caja para tu usuario en esta fecha. Puedes guardar otro cierre solo si es una correccion.',
         [
           { text: 'Cancelar', style: 'cancel' },
-          { text: 'Guardar corrección', onPress: confirmCloseCash }
+          { text: 'Guardar correccion', onPress: confirmCloseCash }
         ]
       );
       return;
@@ -176,7 +181,7 @@ export function DailyCashScreen() {
           </Card>
 
           <Card style={styles.metricCard}>
-            <Text style={styles.metricLabel}>Gastos</Text>
+            <Text style={styles.metricLabel}>Gastos activos</Text>
             <Text style={[styles.metricValue, styles.danger]}>{formatMoney(totalExpenses)}</Text>
           </Card>
         </View>
@@ -205,7 +210,7 @@ export function DailyCashScreen() {
         <Card style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>Registrar gasto</Text>
 
-          <Input label="Descripción" icon="🧾" value={expenseDescription} onChangeText={setExpenseDescription} placeholder="Ej: Transporte, gasolina, papelería" />
+          <Input label="Descripcion" icon="🧾" value={expenseDescription} onChangeText={setExpenseDescription} placeholder="Ej: Transporte, gasolina, papeleria" />
           <Input label="Valor" icon="💸" value={expenseValue} onChangeText={setExpenseValue} keyboardType="numeric" placeholder="Ej: 10000" />
 
           <Button title="Agregar gasto" onPress={handleAddExpense} loading={loadingExpense} />
@@ -215,7 +220,7 @@ export function DailyCashScreen() {
           <Text style={styles.sectionTitle}>Cerrar caja</Text>
 
           <Input label="Caja entregada" icon="💵" value={cashDelivered} onChangeText={setCashDelivered} keyboardType="numeric" placeholder="Ej: 250000" />
-          <Input label="Observación" icon="📝" value={closingObservation} onChangeText={setClosingObservation} placeholder="Opcional" />
+          <Input label="Observacion" icon="📝" value={closingObservation} onChangeText={setClosingObservation} placeholder="Opcional" />
 
           <View style={styles.previewBox}>
             <Text style={styles.previewText}>Caja esperada: {formatMoney(expectedCash)}</Text>
@@ -228,7 +233,7 @@ export function DailyCashScreen() {
           <Button title="Cerrar caja" onPress={handleCloseCash} loading={loadingClosing} />
         </Card>
 
-        <Text style={styles.blockTitle}>Pagos del día</Text>
+        <Text style={styles.blockTitle}>Pagos del dia</Text>
 
         {filteredPayments.length === 0 ? (
           <EmptyState title="Sin pagos" message="No hay pagos activos para esta fecha." />
@@ -241,32 +246,54 @@ export function DailyCashScreen() {
               </View>
 
               <Text style={styles.itemText}>Cobrador: {payment.usuarioEmail}</Text>
-              <Text style={styles.itemText}>Observación: {payment.observacion || 'Sin observación'}</Text>
+              <Text style={styles.itemText}>Observacion: {payment.observacion || 'Sin observacion'}</Text>
             </Card>
           ))
         )}
 
-        <Text style={styles.blockTitle}>Gastos del día</Text>
+        <Text style={styles.blockTitle}>Gastos del dia</Text>
 
         {filteredExpenses.length === 0 ? (
           <EmptyState title="Sin gastos" message="No hay gastos registrados para esta fecha." />
         ) : (
-          filteredExpenses.map((expense) => (
-            <Card key={expense.id} style={styles.itemCard}>
-              <View style={styles.row}>
-                <Text style={styles.itemTitle}>{expense.descripcion}</Text>
-                <Text style={styles.expenseValue}>{formatMoney(expense.valor)}</Text>
-              </View>
+          filteredExpenses.map((expense) => {
+            const isCanceled = expense.estado === 'anulado';
+            const canEdit = isAdmin || expense.createdBy === session.email;
 
-              <Text style={styles.itemText}>Registrado por: {expense.createdBy || 'No registrado'}</Text>
-            </Card>
-          ))
+            return (
+              <Pressable key={expense.id} onPress={() => canEdit ? selectExpense(expense.id) : undefined}>
+                <Card style={[styles.itemCard, isCanceled ? styles.canceledCard : null]}>
+                  <View style={styles.row}>
+                    <Text style={[styles.itemTitle, isCanceled ? styles.danger : null]}>{expense.descripcion}</Text>
+                    <StatusBadge type={isCanceled ? 'danger' : 'success'} label={isCanceled ? 'Anulado' : 'Activo'} />
+                  </View>
+
+                  <Text style={[styles.expenseValue, isCanceled ? styles.canceledText : null]}>
+                    {formatMoney(expense.valor)}
+                  </Text>
+
+                  <Text style={styles.itemText}>Registrado por: {expense.createdBy || 'No registrado'}</Text>
+
+                  {isCanceled ? (
+                    <>
+                      <Text style={styles.itemText}>Anulado por: {expense.anuladoPor || 'No registrado'}</Text>
+                      <Text style={styles.itemText}>Motivo: {expense.motivoAnulacion || 'Sin motivo'}</Text>
+                    </>
+                  ) : null}
+
+                  {canEdit ? (
+                    <Text style={styles.openText}>Tocar para editar o anular</Text>
+                  ) : null}
+                </Card>
+              </Pressable>
+            );
+          })
         )}
 
         <Text style={styles.blockTitle}>Historial de cierres</Text>
 
         {closingsForDate.length === 0 ? (
-          <EmptyState title="Sin cierres" message="Todavía no hay cierres guardados para esta fecha." />
+          <EmptyState title="Sin cierres" message="Todavia no hay cierres guardados para esta fecha." />
         ) : (
           closingsForDate.map((closing) => (
             <Card key={closing.id} style={styles.itemCard}>
@@ -280,7 +307,7 @@ export function DailyCashScreen() {
               <Text style={styles.itemText}>Caja esperada: {formatMoney(closing.cajaEsperada)}</Text>
               <Text style={styles.itemText}>Caja entregada: {formatMoney(closing.cajaEntregada)}</Text>
               <Text style={styles.itemText}>Diferencia: {formatMoney(closing.diferencia)}</Text>
-              <Text style={styles.itemText}>Observación: {closing.observacion || 'Sin observación'}</Text>
+              <Text style={styles.itemText}>Observacion: {closing.observacion || 'Sin observacion'}</Text>
             </Card>
           ))
         )}
@@ -308,8 +335,11 @@ const styles = StyleSheet.create({
   previewText: { color: colors.text, fontWeight: '800', marginBottom: 5 },
   blockTitle: { color: colors.text, fontSize: 18, fontWeight: '900', marginTop: 14, marginBottom: 10 },
   itemCard: { marginBottom: 10 },
+  canceledCard: { backgroundColor: '#FFF5F5' },
   row: { flexDirection: 'row', justifyContent: 'space-between', gap: 10, alignItems: 'center' },
   itemTitle: { color: colors.text, fontWeight: '900', fontSize: 15, flex: 1 },
   itemText: { color: colors.muted, fontWeight: '700', marginTop: 5, lineHeight: 20 },
-  expenseValue: { color: colors.danger, fontWeight: '900' }
+  expenseValue: { color: colors.danger, fontWeight: '900', marginTop: 6 },
+  canceledText: { textDecorationLine: 'line-through' },
+  openText: { color: colors.primary, fontWeight: '900', marginTop: 8, fontSize: 12 }
 });

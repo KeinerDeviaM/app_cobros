@@ -1,35 +1,38 @@
-{
-  "expo": {
-    "name": "App Cobros",
-    "slug": "app-cobros",
-    "version": "1.0.0",
-    "orientation": "portrait",
-    "platforms": [
-      "android"
-    ],
-    "userInterfaceStyle": "light",
-    "icon": "./assets/icon.png",
-    "splash": {
-      "image": "./assets/splash.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#2563EB"
-    },
-    "assetBundlePatterns": [
-      "**/*"
-    ],
-    "android": {
-      "package": "com.keinerdeviam.appcobros",
-      "versionCode": 1,
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#2563EB"
-      },
-      "permissions": []
-    },
-    "extra": {
-      "eas": {
-        "projectId": "app-cobros"
-      }
-    }
-  }
+﻿{
+    "expo":  {
+                 "name":  "App Cobros",
+                 "slug":  "app-cobros",
+                 "version":  "1.0.1",
+                 "orientation":  "portrait",
+                 "platforms":  [
+                                   "android"
+                               ],
+                 "userInterfaceStyle":  "light",
+                 "icon":  "./assets/icon.png",
+                 "splash":  {
+                                "image":  "./assets/splash.png",
+                                "resizeMode":  "contain",
+                                "backgroundColor":  "#2563EB"
+                            },
+                 "assetBundlePatterns":  [
+                                             "**/*"
+                                         ],
+                 "android":  {
+                                 "package":  "com.keinerdeviam.appcobros",
+                                 "versionCode":  2,
+                                 "adaptiveIcon":  {
+                                                      "foregroundImage":  "./assets/adaptive-icon.png",
+                                                      "backgroundColor":  "#2563EB"
+                                                  },
+                                 "permissions":  [
+
+                                                 ]
+                             },
+                 "extra":  {
+                               "eas":  {
+                                           "projectId":  "f8d05551-9a3a-4003-bd68-8651a54af660"
+                                       }
+                           },
+                 "owner":  "keiner_devia"
+             }
 }

@@ -36,18 +36,18 @@ export function CreditsScreen() {
 
   return (
     <View style={styles.root}>
-      <TopBar title="CrÃ©ditos" rightText={isAdmin ? '+' : undefined} onRightPress={isAdmin ? () => navigate('newCredit') : undefined} />
+      <TopBar title="Créditos" rightText={isAdmin ? '+' : undefined} onRightPress={isAdmin ? () => navigate('newCredit') : undefined} />
       <Screen>
         <Input
-          label="Buscar crÃ©dito"
-          icon="ðŸ”Ž"
+          label="Buscar crédito"
+          icon="🔎"
           value={search}
           onChangeText={setSearch}
           placeholder="Buscar por cliente, estado o cobrador"
         />
 
         {filtered.length === 0 ? (
-          <EmptyState title="Sin crÃ©ditos" message="No hay crÃ©ditos con ese filtro." />
+          <EmptyState title="Sin créditos" message="No hay créditos con ese filtro." />
         ) : (
           filtered.map((credit) => {
             const statusType =
@@ -83,7 +83,7 @@ export function CreditsScreen() {
         )}
 
         {isAdmin ? (
-          <Button title="Crear nuevo crÃ©dito" onPress={() => navigate('newCredit')} style={styles.button} />
+          <Button title="Crear nuevo crédito" onPress={() => navigate('newCredit')} style={styles.button} />
         ) : null}
       </Screen>
       <BottomNav />

@@ -86,7 +86,14 @@ service cloud.firestore {
     match /gastos/{gastoId} {
       allow read: if esAdmin() || (perfilActivo() && resource.data.createdBy == request.auth.token.email);
       allow create: if perfilActivo();
-      allow update, delete: if esAdmin();
+
+      allow update: if esAdmin()
+        || (
+          perfilActivo()
+          && resource.data.createdBy == request.auth.token.email
+        );
+
+      allow delete: if esAdmin();
     }
 
     match /visitas/{visitaId} {

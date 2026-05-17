@@ -23,6 +23,7 @@ import {
   Credit,
   CreditStatus,
   Expense,
+  ExpenseStatus,
   Frequency,
   Payment,
   PaymentMethod,
@@ -97,6 +98,12 @@ type NewExpenseInput = {
   fecha: string;
 };
 
+type UpdateExpenseInput = {
+  descripcion: string;
+  valor: number;
+  fecha: string;
+};
+
 type NewRouteInput = {
   nombre: string;
   zona: string;
@@ -126,6 +133,8 @@ type AppContextValue = {
   selectedClient: Client | undefined;
   selectedCreditId: string;
   selectedCredit: Credit | undefined;
+  selectedExpenseId: string;
+  selectedExpense: Expense | undefined;
   clients: Client[];
   credits: Credit[];
   payments: Payment[];
@@ -145,6 +154,7 @@ type AppContextValue = {
   clearReceipt: () => void;
   selectClient: (clientId: string) => void;
   selectCredit: (creditId: string) => void;
+  selectExpense: (expenseId: string) => void;
   addClient: (input: NewClientInput) => Promise<void>;
   updateClient: (clientId: string, input: UpdateClientInput) => Promise<void>;
   addCredit: (input: NewCreditInput) => Promise<void>;
@@ -154,6 +164,8 @@ type AppContextValue = {
   addPayment: (input: NewPaymentInput) => Promise<void>;
   cancelPayment: (paymentId: string, motivo?: string) => Promise<void>;
   addExpense: (input: NewExpenseInput) => Promise<void>;
+  updateExpense: (expenseId: string, input: UpdateExpenseInput) => Promise<void>;
+  cancelExpense: (expenseId: string, motivo?: string) => Promise<void>;
   addRoute: (input: NewRouteInput) => Promise<void>;
   createTodayVisits: () => Promise<void>;
   updateVisitStatus: (visitId: string, status: VisitStatus, observacion?: string, promesaFecha?: string) => Promise<void>;
@@ -216,6 +228,10 @@ function safePaymentStatus(value: unknown): PaymentStatus {
   return value === 'anulado' ? 'anulado' : 'activo';
 }
 
+function safeExpenseStatus(value: unknown): ExpenseStatus {
+  return value === 'anulado' ? 'anulado' : 'activo';
+}
+
 function safeVisitStatus(value: unknown): VisitStatus {
   const allowed: VisitStatus[] = ['pendiente', 'visitado', 'pago', 'no-pago', 'no-estaba', 'promesa'];
   return allowed.includes(value as VisitStatus) ? (value as VisitStatus) : 'pendiente';
@@ -245,6 +261,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const [selectedClientId, setSelectedClientId] = useState('');
   const [selectedCreditId, setSelectedCreditId] = useState('');
+  const [selectedExpenseId, setSelectedExpenseId] = useState('');
   const [lastReceipt, setLastReceipt] = useState<PaymentReceipt | null>(null);
 
   const [clients, setClients] = useState<Client[]>([]);
@@ -270,6 +287,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const selectedCredit = useMemo(
     () => credits.find((credit) => credit.id === selectedCreditId),
     [credits, selectedCreditId]
+  );
+
+  const selectedExpense = useMemo(
+    () => expenses.find((expense) => expense.id === selectedExpenseId),
+    [expenses, selectedExpenseId]
   );
 
   const getClientName = (clientId: string) => {
@@ -299,6 +321,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           setBusinessSettings(defaultBusinessSettings);
           setSelectedClientId('');
           setSelectedCreditId('');
+          setSelectedExpenseId('');
           setLastReceipt(null);
           setCurrentScreen('dashboard');
           setAuthLoading(false);
@@ -628,7 +651,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
             valor: safeNumber(data.valor),
             fecha: data.fecha ?? todayKey(),
             createdAt: data.createdAt ?? nowIso(),
-            createdBy: data.createdBy
+            createdBy: data.createdBy,
+            estado: safeExpenseStatus(data.estado),
+            updatedAt: data.updatedAt,
+            updatedBy: data.updatedBy,
+            anuladoPor: data.anuladoPor,
+            anuladoEn: data.anuladoEn,
+            motivoAnulacion: data.motivoAnulacion
           };
         });
 
@@ -781,7 +810,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       .reduce((total, payment) => total + payment.valorPagado, 0);
 
     const expensesToday = expenses
-      .filter((expense) => expense.fecha === today)
+      .filter((expense) => expense.estado !== 'anulado' && expense.fecha === today)
       .reduce((total, expense) => total + expense.valor, 0);
 
     const pendingTotal = validCreditsForStats.reduce((total, credit) => total + credit.saldoPendiente, 0);
@@ -848,6 +877,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const selectCredit = (creditId: string) => {
     setSelectedCreditId(creditId);
     setCurrentScreen('creditDetail');
+  };
+
+  const selectExpense = (expenseId: string) => {
+    setSelectedExpenseId(expenseId);
+    setCurrentScreen('editExpense');
   };
 
   const addClient = async (input: NewClientInput) => {
@@ -1216,6 +1250,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       await addDoc(collection(db, 'gastos'), {
         ...input,
+        estado: 'activo',
         createdAt: nowIso(),
         createdBy: session.email
       });
@@ -1227,6 +1262,96 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   };
 
+
+  const updateExpense = async (expenseId: string, input: UpdateExpenseInput) => {
+    const localExpense = expenses.find((expense) => expense.id === expenseId);
+
+    if (!localExpense) {
+      Alert.alert('Gasto no encontrado', 'No se encontro el gasto que quieres editar.');
+      return;
+    }
+
+    if (localExpense.estado === 'anulado') {
+      Alert.alert('Gasto anulado', 'No puedes editar un gasto anulado.');
+      return;
+    }
+
+    if (!isAdmin && localExpense.createdBy !== session.email) {
+      Alert.alert('Acceso restringido', 'Solo puedes editar gastos creados por tu usuario.');
+      return;
+    }
+
+    try {
+      await updateDoc(doc(db, 'gastos', expenseId), {
+        descripcion: input.descripcion,
+        valor: input.valor,
+        fecha: input.fecha,
+        updatedAt: nowIso(),
+        updatedBy: session.email
+      });
+
+      await addDoc(collection(db, 'auditoria'), {
+        tipo: 'EDITAR_GASTO',
+        descripcion: `Gasto editado por ${session.email}`,
+        valor: input.valor,
+        usuarioEmail: session.email,
+        createdAt: nowIso()
+      });
+
+      Alert.alert('Gasto actualizado', 'Los cambios fueron guardados correctamente.');
+      setCurrentScreen('dailyCash');
+    } catch (error) {
+      console.error('Error editando gasto:', error);
+      Alert.alert('Error Firebase', 'No se pudo editar el gasto.');
+    }
+  };
+
+  const cancelExpense = async (expenseId: string, motivo = 'Gasto anulado desde app') => {
+    const localExpense = expenses.find((expense) => expense.id === expenseId);
+
+    if (!localExpense) {
+      Alert.alert('Gasto no encontrado', 'No se encontro el gasto que quieres anular.');
+      return;
+    }
+
+    if (localExpense.estado === 'anulado') {
+      Alert.alert('Gasto ya anulado', 'Este gasto ya fue anulado anteriormente.');
+      return;
+    }
+
+    if (!isAdmin && localExpense.createdBy !== session.email) {
+      Alert.alert('Acceso restringido', 'Solo puedes anular gastos creados por tu usuario.');
+      return;
+    }
+
+    try {
+      const fecha = nowIso();
+
+      await updateDoc(doc(db, 'gastos', expenseId), {
+        estado: 'anulado',
+        anuladoPor: session.email,
+        anuladoEn: fecha,
+        motivoAnulacion: motivo,
+        updatedAt: fecha,
+        updatedBy: session.email
+      });
+
+      await addDoc(collection(db, 'auditoria'), {
+        tipo: 'ANULAR_GASTO',
+        descripcion: `Gasto anulado por ${session.email}`,
+        valor: localExpense.valor,
+        motivo,
+        usuarioEmail: session.email,
+        createdAt: fecha
+      });
+
+      Alert.alert('Gasto anulado', 'El gasto fue anulado y ya no resta en caja.');
+      setCurrentScreen('dailyCash');
+    } catch (error) {
+      console.error('Error anulando gasto:', error);
+      Alert.alert('Error Firebase', 'No se pudo anular el gasto.');
+    }
+  };
   const addRoute = async (input: NewRouteInput) => {
     if (!isAdmin) {
       Alert.alert('Acceso restringido', 'Solo un administrador puede crear rutas.');
@@ -1236,6 +1361,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       await addDoc(collection(db, 'rutas'), {
         ...input,
+        estado: 'activo',
         createdAt: nowIso(),
         createdBy: session.email
       });
@@ -1329,6 +1455,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       });
 
       const userExpenses = expenses.filter((expense) => {
+        if (expense.estado === 'anulado') return false;
         if (expense.fecha !== targetDate) return false;
         if (isAdmin) return true;
         return expense.createdBy === session.email;
@@ -1483,6 +1610,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     selectedClient,
     selectedCreditId,
     selectedCredit,
+    selectedExpenseId,
+    selectedExpense,
     clients,
     credits,
     payments,
@@ -1502,6 +1631,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     clearReceipt,
     selectClient,
     selectCredit,
+    selectExpense,
     addClient,
     updateClient,
     addCredit,
@@ -1511,6 +1641,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     addPayment,
     cancelPayment,
     addExpense,
+    updateExpense,
+    cancelExpense,
     addRoute,
     createTodayVisits,
     updateVisitStatus,

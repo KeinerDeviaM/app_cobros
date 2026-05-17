@@ -165,7 +165,7 @@ export function ExportReportsScreen() {
 
   const exportDailyCash = async () => {
     const todayPayments = activePayments.filter((payment) => payment.fechaPago === today);
-    const todayExpenses = expenses.filter((expense) => expense.fecha === today);
+    const todayExpenses = expenses.filter((expense) => expense.estado !== 'anulado' && expense.fecha === today);
 
     const totalPayments = todayPayments.reduce((total, payment) => total + payment.valorPagado, 0);
     const totalExpenses = todayExpenses.reduce((total, expense) => total + expense.valor, 0);

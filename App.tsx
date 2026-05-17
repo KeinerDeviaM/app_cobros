@@ -16,6 +16,7 @@ import { PaymentsScreen } from './src/screens/PaymentsScreen';
 import { PaymentReceiptScreen } from './src/screens/PaymentReceiptScreen';
 import { RegisterPaymentScreen } from './src/screens/RegisterPaymentScreen';
 import { DailyCashScreen } from './src/screens/DailyCashScreen';
+import { EditExpenseScreen } from './src/screens/EditExpenseScreen';
 import { ReportsScreen } from './src/screens/ReportsScreen';
 import { UsersScreen } from './src/screens/UsersScreen';
 import { RoutesScreen } from './src/screens/RoutesScreen';
@@ -84,6 +85,8 @@ function Root() {
       return <RegisterPaymentScreen />;
     case 'dailyCash':
       return <DailyCashScreen />;
+    case 'editExpense':
+      return <EditExpenseScreen />;
     case 'reports':
       return <ReportsScreen />;
     case 'users':

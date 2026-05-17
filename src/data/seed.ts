@@ -118,9 +118,10 @@ export const seedPayments: Payment[] = [
 export const seedExpenses: Expense[] = [
   {
     id: 'gasto-1',
-    descripcion: 'Transporte ruta manana',
+    descripcion: 'Transporte del cobrador',
     valor: 12000,
-    fecha: today,
+    fecha: todayKey(),
+    estado: 'activo',
     createdAt: nowIso()
   }
 ];

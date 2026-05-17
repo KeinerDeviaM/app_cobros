@@ -41,6 +41,7 @@ export function DashboardScreen() {
 
   const todayExpenses = useMemo(() => {
     return expenses.filter((expense) => {
+      if (expense.estado === 'anulado') return false;
       if (expense.fecha !== today) return false;
       if (isAdmin) return true;
       return expense.createdBy === session.email;
