@@ -6,6 +6,7 @@ import { LoginScreen } from './src/screens/LoginScreen';
 import { DashboardScreen } from './src/screens/DashboardScreen';
 import { ClientsScreen } from './src/screens/ClientsScreen';
 import { ClientDetailScreen } from './src/screens/ClientDetailScreen';
+import { EditClientScreen } from './src/screens/EditClientScreen';
 import { NewClientScreen } from './src/screens/NewClientScreen';
 import { CreditsScreen } from './src/screens/CreditsScreen';
 import { NewCreditScreen } from './src/screens/NewCreditScreen';
@@ -34,7 +35,7 @@ function Root() {
   if (authLoading) return <LoadingScreen />;
   if (!session.loggedIn) return <LoginScreen />;
 
-  if (!isAdmin && ['newClient', 'newCredit', 'reports', 'users'].includes(currentScreen)) {
+  if (!isAdmin && ['newClient', 'editClient', 'newCredit', 'reports', 'users'].includes(currentScreen)) {
     return <DashboardScreen />;
   }
 
@@ -43,6 +44,8 @@ function Root() {
       return <ClientsScreen />;
     case 'clientDetail':
       return <ClientDetailScreen />;
+    case 'editClient':
+      return <EditClientScreen />;
     case 'newClient':
       return <NewClientScreen />;
     case 'credits':

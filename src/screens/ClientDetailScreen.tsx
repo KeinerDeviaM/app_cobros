@@ -53,8 +53,8 @@ export function ClientDetailScreen() {
     Alert.alert(
       'Cambiar estado',
       nextStatus === 'en-mora'
-        ? 'Â¿Quieres marcar este cliente como En mora?'
-        : 'Â¿Quieres marcar este cliente como Al dÃ­a?',
+        ? 'Ã‚Â¿Quieres marcar este cliente como En mora?'
+        : 'Ã‚Â¿Quieres marcar este cliente como Al dÃƒÂ­a?',
       [
         { text: 'Cancelar', style: 'cancel' },
         { text: 'Cambiar', onPress: () => changeClientStatus(selectedClient.id, nextStatus) }
@@ -74,12 +74,12 @@ export function ClientDetailScreen() {
           <View style={styles.profileInfo}>
             <Text style={styles.name}>{selectedClient.nombre}</Text>
             <Text style={styles.document}>Documento: {selectedClient.documento || 'Sin documento'}</Text>
-            <Text style={styles.phone}>TelÃ©fono: {selectedClient.telefono}</Text>
+            <Text style={styles.phone}>TelÃƒÂ©fono: {selectedClient.telefono}</Text>
           </View>
 
           <StatusBadge
             type={selectedClient.estado === 'al-dia' ? 'success' : 'danger'}
-            label={selectedClient.estado === 'al-dia' ? 'Al dÃ­a' : 'En mora'}
+            label={selectedClient.estado === 'al-dia' ? 'Al dÃƒÂ­a' : 'En mora'}
           />
         </Card>
 
@@ -96,8 +96,8 @@ export function ClientDetailScreen() {
         </View>
 
         <Card>
-          <Text style={styles.sectionTitle}>InformaciÃ³n del cliente</Text>
-          <Text style={styles.detail}>DirecciÃ³n: {selectedClient.direccion}</Text>
+          <Text style={styles.sectionTitle}>InformaciÃƒÂ³n del cliente</Text>
+          <Text style={styles.detail}>DirecciÃƒÂ³n: {selectedClient.direccion}</Text>
           <Text style={styles.detail}>Barrio: {selectedClient.barrio || 'Sin barrio'}</Text>
           <Text style={styles.detail}>Cobrador: {selectedClient.assignedToEmail || 'Sin asignar'}</Text>
           <Text style={styles.detail}>Ruta: {selectedClient.routeName || 'Sin ruta'}</Text>
@@ -108,21 +108,21 @@ export function ClientDetailScreen() {
           <Text style={styles.sectionTitle}>Acciones</Text>
           <Button title="Registrar pago" onPress={() => navigate('registerPayment')} style={styles.actionButton} />
           <Button
-            title={nextStatus === 'en-mora' ? 'Marcar en mora' : 'Marcar al dÃ­a'}
+            title={nextStatus === 'en-mora' ? 'Marcar en mora' : 'Marcar al dÃƒÂ­a'}
             variant={nextStatus === 'en-mora' ? 'danger' : 'secondary'}
             onPress={handleChangeStatus}
             style={styles.actionButton}
           />
 
           {isAdmin ? (
-            <Button title="Crear crÃ©dito para cliente" variant="secondary" onPress={() => navigate('newCredit')} style={styles.actionButton} />
+            <Button title="Crear crÃƒÂ©dito para cliente" variant="secondary" onPress={() => navigate('newCredit')} style={styles.actionButton} />
           ) : null}
         </Card>
 
-        <Text style={styles.blockTitle}>CrÃ©ditos del cliente</Text>
+        <Text style={styles.blockTitle}>CrÃƒÂ©ditos del cliente</Text>
 
         {clientCredits.length === 0 ? (
-          <EmptyState title="Sin crÃ©ditos" message="Este cliente todavÃ­a no tiene crÃ©ditos registrados." />
+          <EmptyState title="Sin crÃƒÂ©ditos" message="Este cliente todavÃƒÂ­a no tiene crÃƒÂ©ditos registrados." />
         ) : (
           clientCredits.map((credit) => (
             <Card key={credit.id} style={styles.itemCard}>
@@ -136,7 +136,7 @@ export function ClientDetailScreen() {
 
               <Text style={styles.detail}>Total a pagar: {formatMoney(credit.valorTotal)}</Text>
               <Text style={styles.detail}>Saldo: {formatMoney(credit.saldoPendiente)}</Text>
-              <Text style={styles.detail}>Cuota: {formatMoney(credit.valorCuota)} Â· {credit.frecuencia}</Text>
+              <Text style={styles.detail}>Cuota: {formatMoney(credit.valorCuota)} Ã‚Â· {credit.frecuencia}</Text>
               <Text style={styles.detail}>Inicio: {credit.fechaInicio}</Text>
             </Card>
           ))
@@ -145,7 +145,7 @@ export function ClientDetailScreen() {
         <Text style={styles.blockTitle}>Pagos del cliente</Text>
 
         {clientPayments.length === 0 ? (
-          <EmptyState title="Sin pagos" message="Este cliente todavÃ­a no tiene pagos registrados." />
+          <EmptyState title="Sin pagos" message="Este cliente todavÃƒÂ­a no tiene pagos registrados." />
         ) : (
           clientPayments.map((payment) => (
             <Card key={payment.id} style={styles.itemCard}>
@@ -154,7 +154,7 @@ export function ClientDetailScreen() {
                 <Text style={styles.date}>{payment.fechaPago}</Text>
               </View>
 
-              <Text style={styles.detail}>MÃ©todo: {payment.metodoPago}</Text>
+              <Text style={styles.detail}>MÃƒÂ©todo: {payment.metodoPago}</Text>
               <Text style={styles.detail}>Registrado por: {payment.usuarioEmail}</Text>
               {payment.observacion ? <Text style={styles.detail}>Nota: {payment.observacion}</Text> : null}
             </Card>

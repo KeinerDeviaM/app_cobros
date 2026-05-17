@@ -2,6 +2,7 @@ export type ScreenName =
   | 'dashboard'
   | 'clients'
   | 'clientDetail'
+  | 'editClient'
   | 'credits'
   | 'payments'
   | 'newClient'
