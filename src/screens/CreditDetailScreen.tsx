@@ -19,6 +19,7 @@ export function CreditDetailScreen() {
     payments,
     navigate,
     updateCreditStatus,
+    cancelCredit,
     isAdmin
   } = useApp();
 
@@ -32,15 +33,16 @@ export function CreditDetailScreen() {
     return payments.filter((payment) => payment.creditoId === selectedCredit.id);
   }, [payments, selectedCredit]);
 
-  const totalPaid = creditPayments.filter((payment) => payment.estado !== 'anulado').reduce((total, payment) => total + payment.valorPagado, 0);
+  const activeCreditPayments = creditPayments.filter((payment) => payment.estado !== 'anulado');
+  const totalPaid = activeCreditPayments.reduce((total, payment) => total + payment.valorPagado, 0);
 
   if (!selectedCredit) {
     return (
       <View style={styles.root}>
-        <TopBar title="Detalle crÃ©dito" showBack onBack={() => navigate('credits')} />
+        <TopBar title="Detalle crédito" showBack onBack={() => navigate('credits')} />
         <Screen>
-          <EmptyState title="CrÃ©dito no encontrado" message="Vuelve a crÃ©ditos y selecciona uno." />
-          <Button title="Volver a crÃ©ditos" onPress={() => navigate('credits')} />
+          <EmptyState title="Crédito no encontrado" message="Vuelve a créditos y selecciona uno." />
+          <Button title="Volver a créditos" onPress={() => navigate('credits')} />
         </Screen>
         <BottomNav />
       </View>
@@ -50,16 +52,21 @@ export function CreditDetailScreen() {
   const statusType =
     selectedCredit.estado === 'pagado'
       ? 'success'
-      : selectedCredit.estado === 'vencido'
+      : selectedCredit.estado === 'vencido' || selectedCredit.estado === 'anulado'
         ? 'danger'
         : 'warning';
 
   const confirmStatus = (status: CreditStatus) => {
+    if (selectedCredit.estado === 'anulado') {
+      Alert.alert('Crédito anulado', 'No puedes cambiar el estado de un crédito anulado.');
+      return;
+    }
+
     Alert.alert(
       'Cambiar estado',
       status === 'pagado'
-        ? 'Marcar como pagado pondrÃ¡ el saldo pendiente en $0. Â¿Deseas continuar?'
-        : `Â¿Deseas marcar este crÃ©dito como ${status}?`,
+        ? 'Marcar como pagado pondrá el saldo pendiente en $0. ¿Deseas continuar?'
+        : `¿Deseas marcar este crédito como ${status}?`,
       [
         { text: 'Cancelar', style: 'cancel' },
         { text: 'Confirmar', onPress: () => updateCreditStatus(selectedCredit.id, status) }
@@ -67,20 +74,35 @@ export function CreditDetailScreen() {
     );
   };
 
+  const confirmCancelCredit = () => {
+    Alert.alert(
+      'Anular crédito',
+      'Esta acción marcará el crédito como anulado, pondrá su saldo en $0 y guardará auditoría. No se borrarán los pagos históricos. ¿Deseas continuar?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Anular',
+          style: 'destructive',
+          onPress: () => cancelCredit(selectedCredit.id, 'Anulación manual desde detalle del crédito')
+        }
+      ]
+    );
+  };
+
   return (
     <View style={styles.root}>
-      <TopBar title="Detalle crÃ©dito" showBack onBack={() => navigate('credits')} />
+      <TopBar title="Detalle crédito" showBack onBack={() => navigate('credits')} />
       <Screen>
         <Card style={styles.headerCard}>
           <View style={styles.headerTop}>
             <View style={styles.iconBox}>
-              <Text style={styles.icon}>ðŸ’³</Text>
+              <Text style={styles.icon}>💳</Text>
             </View>
 
             <View style={styles.headerInfo}>
               <Text style={styles.clientName}>{client?.nombre ?? 'Cliente no encontrado'}</Text>
-              <Text style={styles.clientMeta}>{client?.telefono ?? 'Sin telÃ©fono'}</Text>
-              <Text style={styles.clientMeta}>{client?.direccion ?? 'Sin direcciÃ³n'}</Text>
+              <Text style={styles.clientMeta}>{client?.telefono ?? 'Sin teléfono'}</Text>
+              <Text style={styles.clientMeta}>{client?.direccion ?? 'Sin dirección'}</Text>
             </View>
 
             <StatusBadge type={statusType} label={selectedCredit.estado} />
@@ -89,6 +111,12 @@ export function CreditDetailScreen() {
           <Text style={styles.collector}>
             Cobrador: {selectedCredit.assignedToEmail || client?.assignedToEmail || 'Sin asignar'}
           </Text>
+
+          {selectedCredit.estado === 'anulado' ? (
+            <Text style={styles.cancelWarning}>
+              Este crédito fue anulado. No suma en cartera y no permite nuevos pagos.
+            </Text>
+          ) : null}
         </Card>
 
         <View style={styles.grid}>
@@ -105,7 +133,7 @@ export function CreditDetailScreen() {
 
         <View style={styles.grid}>
           <Card style={styles.metricCard}>
-            <Text style={styles.metricLabel}>Pagado</Text>
+            <Text style={styles.metricLabel}>Pagado activo</Text>
             <Text style={styles.metricValue}>{formatMoney(totalPaid)}</Text>
           </Card>
 
@@ -116,8 +144,8 @@ export function CreditDetailScreen() {
         </View>
 
         <Card style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>Datos del crÃ©dito</Text>
-          <Text style={styles.detail}>NÃºmero de cuotas: {selectedCredit.numeroCuotas}</Text>
+          <Text style={styles.sectionTitle}>Datos del crédito</Text>
+          <Text style={styles.detail}>Número de cuotas: {selectedCredit.numeroCuotas}</Text>
           <Text style={styles.detail}>Valor cuota: {formatMoney(selectedCredit.valorCuota)}</Text>
           <Text style={styles.detail}>Frecuencia: {selectedCredit.frecuencia}</Text>
           <Text style={styles.detail}>Fecha inicio: {selectedCredit.fechaInicio}</Text>
@@ -127,55 +155,86 @@ export function CreditDetailScreen() {
         <Card style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>Acciones</Text>
 
-          <Button
-            title="Registrar pago"
-            onPress={() => navigate('registerPayment')}
-            style={styles.actionButton}
-          />
+          {selectedCredit.estado !== 'anulado' ? (
+            <Button
+              title="Registrar pago"
+              onPress={() => navigate('registerPayment')}
+              style={styles.actionButton}
+            />
+          ) : null}
 
           {isAdmin ? (
             <>
-              <Button
-                title="Marcar activo"
-                variant="secondary"
-                onPress={() => confirmStatus('activo')}
-                style={styles.actionButton}
-              />
+              {selectedCredit.estado !== 'anulado' ? (
+                <>
+                  <Button
+                    title="Editar crédito"
+                    variant="secondary"
+                    onPress={() => navigate('editCredit')}
+                    style={styles.actionButton}
+                  />
 
-              <Button
-                title="Marcar vencido"
-                variant="danger"
-                onPress={() => confirmStatus('vencido')}
-                style={styles.actionButton}
-              />
+                  <Button
+                    title="Marcar activo"
+                    variant="secondary"
+                    onPress={() => confirmStatus('activo')}
+                    style={styles.actionButton}
+                  />
 
-              <Button
-                title="Marcar pagado"
-                variant="secondary"
-                onPress={() => confirmStatus('pagado')}
-                style={styles.actionButton}
-              />
+                  <Button
+                    title="Marcar vencido"
+                    variant="danger"
+                    onPress={() => confirmStatus('vencido')}
+                    style={styles.actionButton}
+                  />
+
+                  <Button
+                    title="Marcar pagado"
+                    variant="secondary"
+                    onPress={() => confirmStatus('pagado')}
+                    style={styles.actionButton}
+                  />
+
+                  <Button
+                    title="Anular crédito"
+                    variant="danger"
+                    onPress={confirmCancelCredit}
+                    style={styles.actionButton}
+                  />
+                </>
+              ) : null}
             </>
           ) : null}
         </Card>
 
-        <Text style={styles.blockTitle}>Pagos de este crÃ©dito</Text>
+        <Text style={styles.blockTitle}>Pagos de este crédito</Text>
 
         {creditPayments.length === 0 ? (
-          <EmptyState title="Sin pagos" message="Este crÃ©dito todavÃ­a no tiene pagos registrados." />
+          <EmptyState title="Sin pagos" message="Este crédito todavía no tiene pagos registrados." />
         ) : (
-          creditPayments.map((payment) => (
-            <Card key={payment.id} style={styles.paymentCard}>
-              <View style={styles.paymentHeader}>
-                <Text style={styles.paymentAmount}>{formatMoney(payment.valorPagado)}</Text>
-                <Text style={styles.paymentDate}>{payment.fechaPago}</Text>
-              </View>
+          creditPayments.map((payment) => {
+            const isCanceled = payment.estado === 'anulado';
 
-              <Text style={styles.detail}>MÃ©todo: {payment.metodoPago}</Text>
-              <Text style={styles.detail}>Registrado por: {payment.usuarioEmail}</Text>
-              {payment.observacion ? <Text style={styles.detail}>Nota: {payment.observacion}</Text> : null}
-            </Card>
-          ))
+            return (
+              <Card key={payment.id} style={[styles.paymentCard, isCanceled ? styles.canceledPayment : null]}>
+                <View style={styles.paymentHeader}>
+                  <Text style={[styles.paymentAmount, isCanceled ? styles.danger : null]}>
+                    {formatMoney(payment.valorPagado)}
+                  </Text>
+
+                  <StatusBadge
+                    type={isCanceled ? 'danger' : 'success'}
+                    label={isCanceled ? 'Anulado' : payment.fechaPago}
+                  />
+                </View>
+
+                <Text style={styles.detail}>Método: {payment.metodoPago}</Text>
+                <Text style={styles.detail}>Registrado por: {payment.usuarioEmail}</Text>
+                {payment.observacion ? <Text style={styles.detail}>Nota: {payment.observacion}</Text> : null}
+                {isCanceled ? <Text style={styles.detail}>Motivo anulación: {payment.motivoAnulacion || 'Sin motivo'}</Text> : null}
+              </Card>
+            );
+          })
         )}
       </Screen>
       <BottomNav />
@@ -184,18 +243,9 @@ export function CreditDetailScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: colors.background
-  },
-  headerCard: {
-    marginBottom: 12
-  },
-  headerTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12
-  },
+  root: { flex: 1, backgroundColor: colors.background },
+  headerCard: { marginBottom: 12 },
+  headerTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   iconBox: {
     width: 54,
     height: 54,
@@ -204,89 +254,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center'
   },
-  icon: {
-    fontSize: 26
-  },
-  headerInfo: {
-    flex: 1
-  },
-  clientName: {
-    color: colors.text,
-    fontWeight: '900',
-    fontSize: 17
-  },
-  clientMeta: {
-    color: colors.muted,
-    fontWeight: '700',
-    marginTop: 3
-  },
-  collector: {
-    color: colors.primary,
-    fontWeight: '800',
-    marginTop: 12
-  },
-  grid: {
-    flexDirection: 'row',
-    gap: 10,
-    marginBottom: 10
-  },
-  metricCard: {
-    flex: 1
-  },
-  metricLabel: {
-    color: colors.muted,
-    fontWeight: '800',
-    fontSize: 12
-  },
-  metricValue: {
-    color: colors.primary,
-    fontWeight: '900',
-    fontSize: 18,
-    marginTop: 6
-  },
-  danger: {
-    color: colors.danger
-  },
-  sectionCard: {
-    marginBottom: 12
-  },
-  sectionTitle: {
-    color: colors.text,
-    fontWeight: '900',
-    fontSize: 16,
-    marginBottom: 10
-  },
-  detail: {
-    color: colors.muted,
-    fontWeight: '700',
-    marginTop: 5,
-    lineHeight: 20
-  },
-  actionButton: {
-    marginBottom: 10
-  },
-  blockTitle: {
-    color: colors.text,
-    fontWeight: '900',
-    fontSize: 18,
-    marginTop: 12,
-    marginBottom: 10
-  },
-  paymentCard: {
-    marginBottom: 10
-  },
-  paymentHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 10
-  },
-  paymentAmount: {
-    color: colors.primary,
-    fontWeight: '900',
-    fontSize: 16
-  },
-  paymentDate: {
-    color: colors.muted,
-    fontWeight: '800'
-  }
+  icon: { fontSize: 26 },
+  headerInfo: { flex: 1 },
+  clientName: { color: colors.text, fontWeight: '900', fontSize: 17 },
+  clientMeta: { color: colors.muted, fontWeight: '700', marginTop: 3 },
+  collector: { color: colors.primary, fontWeight: '800', marginTop: 12 },
+  cancelWarning: { color: colors.danger, fontWeight: '900', lineHeight: 20, marginTop: 10 },
+  grid: { flexDirection: 'row', gap: 10, marginBottom: 10 },
+  metricCard: { flex: 1 },
+  metricLabel: { color: colors.muted, fontWeight: '800', fontSize: 12 },
+  metricValue: { color: colors.primary, fontWeight: '900', fontSize: 18, marginTop: 6 },
+  danger: { color: colors.danger },
+  sectionCard: { marginBottom: 12 },
+  sectionTitle: { color: colors.text, fontWeight: '900', fontSize: 16, marginBottom: 10 },
+  detail: { color: colors.muted, fontWeight: '700', marginTop: 5, lineHeight: 20 },
+  actionButton: { marginBottom: 10 },
+  blockTitle: { color: colors.text, fontWeight: '900', fontSize: 18, marginTop: 12, marginBottom: 10 },
+  paymentCard: { marginBottom: 10 },
+  canceledPayment: { backgroundColor: '#FFF5F5' },
+  paymentHeader: { flexDirection: 'row', justifyContent: 'space-between', gap: 10 },
+  paymentAmount: { color: colors.primary, fontWeight: '900', fontSize: 16 }
 });

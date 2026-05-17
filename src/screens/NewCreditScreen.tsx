@@ -36,7 +36,7 @@ export function NewCreditScreen() {
     return credits.filter(
       (credit) =>
         credit.clienteId === selectedClient.id &&
-        credit.estado !== 'pagado' &&
+        credit.estado !== 'pagado' && credit.estado !== 'anulado' &&
         credit.saldoPendiente > 0
     );
   }, [credits, selectedClient]);
@@ -54,17 +54,17 @@ export function NewCreditScreen() {
 
   const handleSubmit = async () => {
     if (!clienteId) {
-      Alert.alert('Selecciona cliente', 'Debes seleccionar el cliente del crédito.');
+      Alert.alert('Selecciona cliente', 'Debes seleccionar el cliente del crÃ©dito.');
       return;
     }
 
     if (!isPositiveMoney(prestadoNumber)) {
-      Alert.alert('Valor inválido', 'El valor prestado debe ser mayor que cero.');
+      Alert.alert('Valor invÃ¡lido', 'El valor prestado debe ser mayor que cero.');
       return;
     }
 
     if (!isPositiveMoney(totalNumber)) {
-      Alert.alert('Valor inválido', 'El valor total debe ser mayor que cero.');
+      Alert.alert('Valor invÃ¡lido', 'El valor total debe ser mayor que cero.');
       return;
     }
 
@@ -74,28 +74,28 @@ export function NewCreditScreen() {
     }
 
     if (!isPositiveInteger(cuotasNumber)) {
-      Alert.alert('Cuotas inválidas', 'El número de cuotas debe ser un entero mayor que cero.');
+      Alert.alert('Cuotas invÃ¡lidas', 'El nÃºmero de cuotas debe ser un entero mayor que cero.');
       return;
     }
 
     if (cuotasNumber > 365) {
-      Alert.alert('Demasiadas cuotas', 'El número de cuotas no puede ser mayor a 365.');
+      Alert.alert('Demasiadas cuotas', 'El nÃºmero de cuotas no puede ser mayor a 365.');
       return;
     }
 
     if (!isValidDateKey(fechaInicio)) {
-      Alert.alert('Fecha inválida', 'La fecha debe tener formato YYYY-MM-DD.');
+      Alert.alert('Fecha invÃ¡lida', 'La fecha debe tener formato YYYY-MM-DD.');
       return;
     }
 
     if (selectedClientActiveCredits.length > 0) {
       Alert.alert(
-        'Cliente con crédito activo',
-        'Este cliente ya tiene crédito activo. Puedes continuar, pero revisa que no estés duplicando la deuda.',
+        'Cliente con crÃ©dito activo',
+        'Este cliente ya tiene crÃ©dito activo. Puedes continuar, pero revisa que no estÃ©s duplicando la deuda.',
         [
           { text: 'Cancelar', style: 'cancel' },
           {
-            text: 'Crear crédito',
+            text: 'Crear crÃ©dito',
             onPress: () => saveCredit()
           }
         ]
@@ -123,7 +123,7 @@ export function NewCreditScreen() {
 
   return (
     <View style={styles.root}>
-      <TopBar title="Nuevo crédito" showBack onBack={() => navigate('credits')} />
+      <TopBar title="Nuevo crÃ©dito" showBack onBack={() => navigate('credits')} />
       <Screen>
         <Text style={styles.sectionTitle}>Selecciona cliente</Text>
 
@@ -157,19 +157,19 @@ export function NewCreditScreen() {
 
         {selectedClientActiveCredits.length > 0 ? (
           <Card style={styles.warningCard}>
-            <Text style={styles.warningTitle}>Cliente con crédito activo</Text>
+            <Text style={styles.warningTitle}>Cliente con crÃ©dito activo</Text>
             <Text style={styles.warningText}>
-              Este cliente tiene {selectedClientActiveCredits.length} crédito(s) activo(s). Revisa antes de crear otro.
+              Este cliente tiene {selectedClientActiveCredits.length} crÃ©dito(s) activo(s). Revisa antes de crear otro.
             </Text>
           </Card>
         ) : null}
 
         <Card style={styles.formCard}>
-          <Text style={styles.sectionTitle}>Datos del crédito</Text>
+          <Text style={styles.sectionTitle}>Datos del crÃ©dito</Text>
 
           <Input
             label="Valor prestado"
-            icon="💵"
+            icon="ðŸ’µ"
             value={valorPrestado}
             onChangeText={setValorPrestado}
             placeholder="Ej: 100000"
@@ -178,7 +178,7 @@ export function NewCreditScreen() {
 
           <Input
             label="Valor total a pagar"
-            icon="💰"
+            icon="ðŸ’°"
             value={valorTotal}
             onChangeText={setValorTotal}
             placeholder="Ej: 120000"
@@ -186,8 +186,8 @@ export function NewCreditScreen() {
           />
 
           <Input
-            label="Número de cuotas"
-            icon="🔢"
+            label="NÃºmero de cuotas"
+            icon="ðŸ”¢"
             value={numeroCuotas}
             onChangeText={setNumeroCuotas}
             placeholder="Ej: 12"
@@ -215,7 +215,7 @@ export function NewCreditScreen() {
 
           <Input
             label="Fecha de inicio"
-            icon="📅"
+            icon="ðŸ“…"
             value={fechaInicio}
             onChangeText={setFechaInicio}
             placeholder="YYYY-MM-DD"
@@ -228,7 +228,7 @@ export function NewCreditScreen() {
             <Text style={styles.previewText}>Saldo inicial: {formatMoney(totalNumber)}</Text>
           </View>
 
-          <Button title="Crear crédito" onPress={handleSubmit} loading={loading} />
+          <Button title="Crear crÃ©dito" onPress={handleSubmit} loading={loading} />
         </Card>
       </Screen>
       <BottomNav />

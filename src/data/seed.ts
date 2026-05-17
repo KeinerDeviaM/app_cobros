@@ -98,6 +98,7 @@ export const seedPayments: Payment[] = [
     metodoPago: 'Efectivo',
     fechaPago: today,
     observacion: 'Pago inicial de prueba',
+    estado: 'activo',
     createdAt: nowIso()
   },
   {
@@ -109,6 +110,7 @@ export const seedPayments: Payment[] = [
     metodoPago: 'Nequi',
     fechaPago: today,
     observacion: 'Pago recibido por Nequi',
+    estado: 'activo',
     createdAt: nowIso()
   }
 ];

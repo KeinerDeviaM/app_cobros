@@ -10,6 +10,7 @@ import { EditClientScreen } from './src/screens/EditClientScreen';
 import { NewClientScreen } from './src/screens/NewClientScreen';
 import { CreditsScreen } from './src/screens/CreditsScreen';
 import { CreditDetailScreen } from './src/screens/CreditDetailScreen';
+import { EditCreditScreen } from './src/screens/EditCreditScreen';
 import { NewCreditScreen } from './src/screens/NewCreditScreen';
 import { PaymentsScreen } from './src/screens/PaymentsScreen';
 import { PaymentReceiptScreen } from './src/screens/PaymentReceiptScreen';
@@ -45,6 +46,7 @@ function Root() {
     'newClient',
     'editClient',
     'newCredit',
+    'editCredit',
     'reports',
     'users',
     'audit',
@@ -70,6 +72,8 @@ function Root() {
       return <CreditsScreen />;
     case 'creditDetail':
       return <CreditDetailScreen />;
+    case 'editCredit':
+      return <EditCreditScreen />;
     case 'newCredit':
       return <NewCreditScreen />;
     case 'payments':

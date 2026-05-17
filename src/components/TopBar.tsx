@@ -8,19 +8,38 @@ type Props = {
   showBack?: boolean;
   rightText?: string;
   onRightPress?: () => void;
+  onBack?: () => void;
 };
 
-export function TopBar({ title, showBack, rightText, onRightPress }: Props) {
+export function TopBar({ title, showBack, rightText, onRightPress, onBack }: Props) {
   const { navigate } = useApp();
   const topPadding = Platform.OS === 'android' ? StatusBar.currentHeight ?? 0 : 0;
+
+  const handleLeftPress = () => {
+    if (showBack) {
+      if (onBack) {
+        onBack();
+        return;
+      }
+
+      navigate('dashboard');
+      return;
+    }
+
+    navigate('more');
+  };
 
   return (
     <View style={[styles.bar, { paddingTop: topPadding + 10 }]}>
       <View style={styles.row}>
-        <Pressable style={styles.iconButton} onPress={() => (showBack ? navigate('dashboard') : navigate('more'))}>
+        <Pressable style={styles.iconButton} onPress={handleLeftPress}>
           <Text style={styles.icon}>{showBack ? '‹' : '☰'}</Text>
         </Pressable>
-        <Text style={styles.title}>{title}</Text>
+
+        <Text style={styles.title} numberOfLines={1}>
+          {title}
+        </Text>
+
         {rightText ? (
           <Pressable style={styles.rightButton} onPress={onRightPress}>
             <Text style={styles.rightText}>{rightText}</Text>

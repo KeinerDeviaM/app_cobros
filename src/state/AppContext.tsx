@@ -8,21 +8,26 @@ import {
   getDoc,
   onSnapshot,
   query,
+  runTransaction,
   setDoc,
   updateDoc,
-  runTransaction,
   where
 } from 'firebase/firestore';
 import { auth, db } from '../services/firebase';
 import {
+  AuditLog,
+  BusinessSettings,
+  CashClosing,
   Client,
   ClientStatus,
   Credit,
+  CreditStatus,
   Expense,
   Frequency,
   Payment,
   PaymentMethod,
   PaymentReceipt,
+  PaymentStatus,
   Route,
   ScreenName,
   Session,
@@ -35,9 +40,30 @@ import { nowIso, todayKey } from '../utils/date';
 
 const ADMIN_EMAIL = 'admin@cobroapp.com';
 
-type NewClientInput = Omit<Client, 'id' | 'estado' | 'createdAt'>;
+type NewClientInput = {
+  nombre: string;
+  documento: string;
+  telefono: string;
+  direccion: string;
+  barrio: string;
+  assignedToUid?: string;
+  assignedToEmail?: string;
+  routeId?: string;
+  routeName?: string;
+};
 
-type UpdateClientInput = Omit<Client, 'id' | 'createdAt' | 'createdBy'>;
+type UpdateClientInput = {
+  nombre: string;
+  documento: string;
+  telefono: string;
+  direccion: string;
+  barrio: string;
+  estado: ClientStatus;
+  assignedToUid?: string;
+  assignedToEmail?: string;
+  routeId?: string;
+  routeName?: string;
+};
 
 type NewCreditInput = {
   clienteId: string;
@@ -46,6 +72,15 @@ type NewCreditInput = {
   numeroCuotas: number;
   frecuencia: Frequency;
   fechaInicio: string;
+};
+
+type UpdateCreditInput = {
+  valorPrestado: number;
+  valorTotal: number;
+  numeroCuotas: number;
+  frecuencia: Frequency;
+  fechaInicio: string;
+  estado: CreditStatus;
 };
 
 type NewPaymentInput = {
@@ -68,6 +103,21 @@ type NewRouteInput = {
   descripcion: string;
 };
 
+type NewCashClosingInput = {
+  fecha: string;
+  cajaEntregada: number;
+  observacion: string;
+};
+
+type NewBusinessSettingsInput = {
+  businessName: string;
+  appName: string;
+  phone: string;
+  address: string;
+  receiptMessage: string;
+  currency: string;
+};
+
 type AppContextValue = {
   session: Session;
   authLoading: boolean;
@@ -79,11 +129,14 @@ type AppContextValue = {
   clients: Client[];
   credits: Credit[];
   payments: Payment[];
-  lastReceipt: PaymentReceipt | null;
   expenses: Expense[];
   users: UserProfile[];
   routes: Route[];
   visits: Visit[];
+  cashClosings: CashClosing[];
+  auditLogs: AuditLog[];
+  businessSettings: BusinessSettings;
+  lastReceipt: PaymentReceipt | null;
   loadingClients: boolean;
   isAdmin: boolean;
   login: (email: string, password: string) => Promise<void>;
@@ -95,13 +148,17 @@ type AppContextValue = {
   addClient: (input: NewClientInput) => Promise<void>;
   updateClient: (clientId: string, input: UpdateClientInput) => Promise<void>;
   addCredit: (input: NewCreditInput) => Promise<void>;
-  updateCreditStatus: (creditId: string, status: Credit['estado']) => Promise<void>;
+  updateCreditStatus: (creditId: string, status: CreditStatus) => Promise<void>;
+  updateCredit: (creditId: string, input: UpdateCreditInput) => Promise<void>;
+  cancelCredit: (creditId: string, motivo?: string) => Promise<void>;
   addPayment: (input: NewPaymentInput) => Promise<void>;
   cancelPayment: (paymentId: string, motivo?: string) => Promise<void>;
   addExpense: (input: NewExpenseInput) => Promise<void>;
   addRoute: (input: NewRouteInput) => Promise<void>;
   createTodayVisits: () => Promise<void>;
   updateVisitStatus: (visitId: string, status: VisitStatus, observacion?: string, promesaFecha?: string) => Promise<void>;
+  createCashClosing: (input: NewCashClosingInput) => Promise<void>;
+  updateBusinessSettings: (input: NewBusinessSettingsInput) => Promise<void>;
   updateUserRole: (userId: string, role: UserRole) => Promise<void>;
   toggleUserActive: (userId: string, activo: boolean) => Promise<void>;
   assignClientToCollector: (clientId: string, collector: UserProfile | null) => Promise<void>;
@@ -150,6 +207,15 @@ function safeRole(value: unknown): UserRole {
   return value === 'admin' || value === 'cobrador' ? value : 'cobrador';
 }
 
+function safeCreditStatus(value: unknown): CreditStatus {
+  const allowed: CreditStatus[] = ['activo', 'pagado', 'vencido', 'anulado'];
+  return allowed.includes(value as CreditStatus) ? (value as CreditStatus) : 'activo';
+}
+
+function safePaymentStatus(value: unknown): PaymentStatus {
+  return value === 'anulado' ? 'anulado' : 'activo';
+}
+
 function safeVisitStatus(value: unknown): VisitStatus {
   const allowed: VisitStatus[] = ['pendiente', 'visitado', 'pago', 'no-pago', 'no-estaba', 'promesa'];
   return allowed.includes(value as VisitStatus) ? (value as VisitStatus) : 'pendiente';
@@ -162,31 +228,35 @@ function sortByCreatedAt<T extends { createdAt: string }>(items: T[]): T[] {
 function getAuthErrorMessage(error: unknown): string {
   const code = typeof error === 'object' && error !== null && 'code' in error ? String((error as { code?: string }).code) : '';
 
-  if (code.includes('auth/invalid-credential')) return 'Correo o contraseÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â±a incorrectos.';
+  if (code.includes('auth/invalid-credential')) return 'Correo o contrasena incorrectos.';
   if (code.includes('auth/user-not-found')) return 'No existe un usuario con ese correo.';
-  if (code.includes('auth/wrong-password')) return 'La contraseÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â±a es incorrecta.';
-  if (code.includes('auth/invalid-email')) return 'El correo no tiene un formato vÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡lido.';
-  if (code.includes('auth/too-many-requests')) return 'Demasiados intentos. Intenta mÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡s tarde.';
-  if (code.includes('auth/network-request-failed')) return 'No hay conexiÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³n a internet.';
+  if (code.includes('auth/wrong-password')) return 'La contrasena es incorrecta.';
+  if (code.includes('auth/invalid-email')) return 'El correo no tiene un formato valido.';
+  if (code.includes('auth/too-many-requests')) return 'Demasiados intentos. Intenta mas tarde.';
+  if (code.includes('auth/network-request-failed')) return 'No hay conexion a internet.';
 
-  return 'No se pudo iniciar sesiÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³n. Revisa los datos.';
+  return 'No se pudo iniciar sesion. Revisa los datos.';
 }
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session>(initialSession);
   const [authLoading, setAuthLoading] = useState(true);
   const [currentScreen, setCurrentScreen] = useState<ScreenName>('dashboard');
+
   const [selectedClientId, setSelectedClientId] = useState('');
   const [selectedCreditId, setSelectedCreditId] = useState('');
+  const [lastReceipt, setLastReceipt] = useState<PaymentReceipt | null>(null);
 
   const [clients, setClients] = useState<Client[]>([]);
   const [credits, setCredits] = useState<Credit[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
-  const [lastReceipt, setLastReceipt] = useState<PaymentReceipt | null>(null);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [routes, setRoutes] = useState<Route[]>([]);
   const [visits, setVisits] = useState<Visit[]>([]);
+  const [cashClosings, setCashClosings] = useState<CashClosing[]>([]);
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [businessSettings, setBusinessSettings] = useState<BusinessSettings>(defaultBusinessSettings);
 
   const [loadingClients, setLoadingClients] = useState(false);
 
@@ -202,6 +272,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [credits, selectedCreditId]
   );
 
+  const getClientName = (clientId: string) => {
+    return clients.find((client) => client.id === clientId)?.nombre ?? 'Cliente no encontrado';
+  };
+
+  const getCreditClient = (creditId: string) => {
+    const credit = credits.find((item) => item.id === creditId);
+    if (!credit) return undefined;
+    return clients.find((client) => client.id === credit.clienteId);
+  };
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       try {
@@ -210,13 +290,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
           setClients([]);
           setCredits([]);
           setPayments([]);
-          setLastReceipt(null);
           setExpenses([]);
           setUsers([]);
           setRoutes([]);
           setVisits([]);
+          setCashClosings([]);
+          setAuditLogs([]);
+          setBusinessSettings(defaultBusinessSettings);
           setSelectedClientId('');
           setSelectedCreditId('');
+          setLastReceipt(null);
           setCurrentScreen('dashboard');
           setAuthLoading(false);
           return;
@@ -246,7 +329,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
         if (!activo) {
           await signOut(auth);
-          Alert.alert('Usuario inactivo', 'Tu usuario estÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ desactivado. Contacta al administrador.');
+          Alert.alert('Usuario inactivo', 'Tu usuario esta desactivado. Contacta al administrador.');
           setAuthLoading(false);
           return;
         }
@@ -270,18 +353,54 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    if (!session.loggedIn) {
+      setBusinessSettings(defaultBusinessSettings);
+      return;
+    }
+
+    const settingsRef = doc(db, 'configuracion', 'negocio');
+
+    const unsubscribe = onSnapshot(
+      settingsRef,
+      (snapshot) => {
+        if (!snapshot.exists()) {
+          setBusinessSettings(defaultBusinessSettings);
+          return;
+        }
+
+        const data = snapshot.data() as Partial<BusinessSettings>;
+
+        setBusinessSettings({
+          id: snapshot.id,
+          businessName: data.businessName || defaultBusinessSettings.businessName,
+          appName: data.appName || defaultBusinessSettings.appName,
+          phone: data.phone || '',
+          address: data.address || '',
+          receiptMessage: data.receiptMessage || defaultBusinessSettings.receiptMessage,
+          currency: data.currency || defaultBusinessSettings.currency,
+          updatedAt: data.updatedAt,
+          updatedBy: data.updatedBy
+        });
+      },
+      (error) => {
+        console.error('Error cargando configuracion del negocio:', error);
+      }
+    );
+
+    return unsubscribe;
+  }, [session.loggedIn]);
+
+  useEffect(() => {
     if (!session.loggedIn || !isAdmin) {
       setUsers([]);
       return;
     }
 
-    const usersQuery = query(collection(db, 'usuarios'));
-
     const unsubscribe = onSnapshot(
-      usersQuery,
+      query(collection(db, 'usuarios')),
       (snapshot) => {
         const firebaseUsers: UserProfile[] = snapshot.docs.map((item) => {
-          const data = item.data() as Omit<UserProfile, 'id'>;
+          const data = item.data() as Partial<UserProfile>;
 
           return {
             id: item.id,
@@ -310,13 +429,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const routesQuery = query(collection(db, 'rutas'));
-
     const unsubscribe = onSnapshot(
-      routesQuery,
+      query(collection(db, 'rutas')),
       (snapshot) => {
         const firebaseRoutes: Route[] = snapshot.docs.map((item) => {
-          const data = item.data() as Omit<Route, 'id'>;
+          const data = item.data() as Partial<Route>;
 
           return {
             id: item.id,
@@ -341,6 +458,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!session.loggedIn) {
+      setClients([]);
       setLoadingClients(false);
       return;
     }
@@ -355,7 +473,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       clientsQuery,
       (snapshot) => {
         const firebaseClients: Client[] = snapshot.docs.map((item) => {
-          const data = item.data() as Omit<Client, 'id'>;
+          const data = item.data() as Partial<Client>;
 
           return {
             id: item.id,
@@ -367,6 +485,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
             estado: data.estado ?? 'al-dia',
             createdAt: data.createdAt ?? nowIso(),
             createdBy: data.createdBy,
+            updatedAt: data.updatedAt,
+            updatedBy: data.updatedBy,
             assignedToUid: data.assignedToUid,
             assignedToEmail: data.assignedToEmail,
             routeId: data.routeId,
@@ -388,7 +508,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [session.loggedIn, session.uid, isAdmin]);
 
   useEffect(() => {
-    if (!session.loggedIn) return;
+    if (!session.loggedIn) {
+      setCredits([]);
+      return;
+    }
 
     const creditsQuery = isAdmin
       ? query(collection(db, 'creditos'))
@@ -398,7 +521,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       creditsQuery,
       (snapshot) => {
         const firebaseCredits: Credit[] = snapshot.docs.map((item) => {
-          const data = item.data() as Omit<Credit, 'id'>;
+          const data = item.data() as Partial<Credit>;
 
           return {
             id: item.id,
@@ -409,20 +532,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
             numeroCuotas: safeNumber(data.numeroCuotas),
             valorCuota: safeNumber(data.valorCuota),
             frecuencia: data.frecuencia ?? 'Diaria',
-            estado: data.estado ?? 'activo',
+            estado: safeCreditStatus(data.estado),
             fechaInicio: data.fechaInicio ?? todayKey(),
             createdAt: data.createdAt ?? nowIso(),
             createdBy: data.createdBy,
+            updatedAt: data.updatedAt,
+            updatedBy: data.updatedBy,
             assignedToUid: data.assignedToUid,
-            assignedToEmail: data.assignedToEmail
+            assignedToEmail: data.assignedToEmail,
+            anuladoPor: data.anuladoPor,
+            anuladoEn: data.anuladoEn,
+            motivoAnulacion: data.motivoAnulacion
           };
         });
 
         setCredits(sortByCreatedAt(firebaseCredits));
       },
       (error) => {
-        console.error('Error cargando crÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©ditos:', error);
-        Alert.alert('Error Firebase', 'No se pudieron cargar los crÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©ditos.');
+        console.error('Error cargando creditos:', error);
+        Alert.alert('Error Firebase', 'No se pudieron cargar los creditos.');
       }
     );
 
@@ -430,7 +558,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [session.loggedIn, session.uid, isAdmin]);
 
   useEffect(() => {
-    if (!session.loggedIn) return;
+    if (!session.loggedIn) {
+      setPayments([]);
+      return;
+    }
 
     const paymentsQuery = isAdmin
       ? query(collection(db, 'pagos'))
@@ -440,25 +571,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
       paymentsQuery,
       (snapshot) => {
         const firebasePayments: Payment[] = snapshot.docs.map((item) => {
-          const data = item.data() as Omit<Payment, 'id'>;
+          const data = item.data() as Partial<Payment>;
 
           return {
             id: item.id,
             creditoId: data.creditoId ?? '',
             clienteId: data.clienteId ?? '',
+            usuarioEmail: data.usuarioEmail ?? '',
             valorPagado: safeNumber(data.valorPagado),
             metodoPago: data.metodoPago ?? 'Efectivo',
             fechaPago: data.fechaPago ?? todayKey(),
             observacion: data.observacion ?? '',
-            usuarioEmail: data.usuarioEmail ?? '',
+            estado: safePaymentStatus(data.estado),
             createdAt: data.createdAt ?? nowIso(),
             createdBy: data.createdBy,
+            updatedAt: data.updatedAt,
+            updatedBy: data.updatedBy,
             assignedToUid: data.assignedToUid,
             assignedToEmail: data.assignedToEmail,
-            estado: data.estado ?? 'activo',
-            anuladoPor: data.anuladoPor ?? '',
-            anuladoEn: data.anuladoEn ?? '',
-            motivoAnulacion: data.motivoAnulacion ?? ''
+            anuladoPor: data.anuladoPor,
+            anuladoEn: data.anuladoEn,
+            motivoAnulacion: data.motivoAnulacion
           };
         });
 
@@ -474,7 +607,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [session.loggedIn, session.uid, isAdmin]);
 
   useEffect(() => {
-    if (!session.loggedIn) return;
+    if (!session.loggedIn) {
+      setExpenses([]);
+      return;
+    }
 
     const expensesQuery = isAdmin
       ? query(collection(db, 'gastos'))
@@ -484,7 +620,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       expensesQuery,
       (snapshot) => {
         const firebaseExpenses: Expense[] = snapshot.docs.map((item) => {
-          const data = item.data() as Omit<Expense, 'id'>;
+          const data = item.data() as Partial<Expense>;
 
           return {
             id: item.id,
@@ -521,7 +657,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       visitsQuery,
       (snapshot) => {
         const firebaseVisits: Visit[] = snapshot.docs.map((item) => {
-          const data = item.data() as Omit<Visit, 'id'>;
+          const data = item.data() as Partial<Visit>;
 
           return {
             id: item.id,
@@ -555,6 +691,48 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return unsubscribe;
   }, [session.loggedIn, session.uid, isAdmin]);
 
+  useEffect(() => {
+    if (!session.loggedIn) {
+      setCashClosings([]);
+      return;
+    }
+
+    const closingsQuery = isAdmin
+      ? query(collection(db, 'cierresCaja'))
+      : query(collection(db, 'cierresCaja'), where('usuarioUid', '==', session.uid));
+
+    const unsubscribe = onSnapshot(
+      closingsQuery,
+      (snapshot) => {
+        const firebaseClosings: CashClosing[] = snapshot.docs.map((item) => {
+          const data = item.data() as Partial<CashClosing>;
+
+          return {
+            id: item.id,
+            fecha: data.fecha ?? todayKey(),
+            usuarioEmail: data.usuarioEmail ?? '',
+            usuarioUid: data.usuarioUid ?? '',
+            totalPagos: safeNumber(data.totalPagos),
+            totalGastos: safeNumber(data.totalGastos),
+            cajaEsperada: safeNumber(data.cajaEsperada),
+            cajaEntregada: safeNumber(data.cajaEntregada),
+            diferencia: safeNumber(data.diferencia),
+            observacion: data.observacion ?? '',
+            createdAt: data.createdAt ?? nowIso(),
+            createdBy: data.createdBy
+          };
+        });
+
+        setCashClosings(sortByCreatedAt(firebaseClosings));
+      },
+      (error) => {
+        console.error('Error cargando cierres de caja:', error);
+        Alert.alert('Error Firebase', 'No se pudieron cargar los cierres de caja.');
+      }
+    );
+
+    return unsubscribe;
+  }, [session.loggedIn, session.uid, isAdmin]);
 
   useEffect(() => {
     if (!session.loggedIn || !isAdmin) {
@@ -562,14 +740,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const auditQuery = query(collection(db, 'auditoria'));
-
     const unsubscribe = onSnapshot(
-      auditQuery,
+      query(collection(db, 'auditoria')),
       (snapshot) => {
         const firebaseAuditLogs: AuditLog[] = snapshot.docs.map((item) => {
-          const data = item.data() as Omit<AuditLog,
-  BusinessSettings, 'id'>;
+          const data = item.data() as Partial<AuditLog>;
 
           return {
             id: item.id,
@@ -579,6 +754,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             creditoId: data.creditoId ?? '',
             clienteId: data.clienteId ?? '',
             valor: safeNumber(data.valor),
+            motivo: data.motivo ?? '',
             usuarioEmail: data.usuarioEmail ?? '',
             createdAt: data.createdAt ?? nowIso()
           };
@@ -588,54 +764,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
       },
       (error) => {
         console.error('Error cargando auditoria:', error);
-        Alert.alert('Error Firebase', 'No se pudo cargar la auditorÃ­a.');
+        Alert.alert('Error Firebase', 'No se pudo cargar la auditoria.');
       }
     );
 
     return unsubscribe;
   }, [session.loggedIn, isAdmin]);
 
-  useEffect(() => {
-    if (!session.loggedIn) {
-      setBusinessSettings(defaultBusinessSettings);
-      return;
-    }
-
-    const settingsRef = doc(db, 'configuracion', 'negocio');
-
-    const unsubscribe = onSnapshot(
-      settingsRef,
-      (snapshot) => {
-        if (!snapshot.exists()) {
-          setBusinessSettings(defaultBusinessSettings);
-          return;
-        }
-
-        const data = snapshot.data() as Omit<BusinessSettings, 'id'>;
-
-        setBusinessSettings({
-          id: snapshot.id,
-          businessName: data.businessName || defaultBusinessSettings.businessName,
-          appName: data.appName || defaultBusinessSettings.appName,
-          phone: data.phone || '',
-          address: data.address || '',
-          receiptMessage: data.receiptMessage || defaultBusinessSettings.receiptMessage,
-          currency: data.currency || defaultBusinessSettings.currency,
-          updatedAt: data.updatedAt,
-          updatedBy: data.updatedBy
-        });
-      },
-      (error) => {
-        console.error('Error cargando configuracion del negocio:', error);
-        Alert.alert('Error Firebase', 'No se pudo cargar la configuración del negocio.');
-      }
-    );
-
-    return unsubscribe;
-  }, [session.loggedIn]);
   const stats = useMemo(() => {
     const today = todayKey();
     const activePayments = payments.filter((payment) => payment.estado !== 'anulado');
+    const validCreditsForStats = credits.filter((credit) => credit.estado !== 'anulado');
 
     const collectedToday = activePayments
       .filter((payment) => payment.fechaPago === today)
@@ -645,13 +784,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       .filter((expense) => expense.fecha === today)
       .reduce((total, expense) => total + expense.valor, 0);
 
-    const pendingTotal = credits.reduce((total, credit) => total + credit.saldoPendiente, 0);
+    const pendingTotal = validCreditsForStats.reduce((total, credit) => total + credit.saldoPendiente, 0);
     const recoveredTotal = activePayments.reduce((total, payment) => total + payment.valorPagado, 0);
-    const lentTotal = credits.reduce((total, credit) => total + credit.valorPrestado, 0);
+    const lentTotal = validCreditsForStats.reduce((total, credit) => total + credit.valorPrestado, 0);
 
     return {
       totalClients: clients.length,
-      activeCredits: credits.filter((credit) => credit.estado === 'activo').length,
+      activeCredits: validCreditsForStats.filter((credit) => credit.estado === 'activo').length,
       collectedToday,
       pendingTotal,
       expensesToday,
@@ -662,23 +801,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
   }, [clients, credits, expenses, payments]);
 
-  const getClientName = (clientId: string) => {
-    return clients.find((client) => client.id === clientId)?.nombre ?? 'Cliente no encontrado';
-  };
-
-  const getCreditClient = (creditId: string) => {
-    const credit = credits.find((item) => item.id === creditId);
-    if (!credit) return undefined;
-    return clients.find((client) => client.id === credit.clienteId);
-  };
-
   const login = async (email: string, password: string) => {
     try {
       await signInWithEmailAndPassword(auth, email.trim(), password.trim());
       setCurrentScreen('dashboard');
     } catch (error) {
       console.error('Error login:', error);
-      Alert.alert('No se pudo iniciar sesiÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³n', getAuthErrorMessage(error));
+      Alert.alert('No se pudo iniciar sesion', getAuthErrorMessage(error));
     }
   };
 
@@ -690,10 +819,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const clearReceipt = () => setLastReceipt(null);
 
   const navigate = (screen: ScreenName) => {
-    const adminOnlyScreens: ScreenName[] = ['newClient', 'newCredit', 'reports', 'users'];
+    const adminOnlyScreens: ScreenName[] = [
+      'newClient',
+      'editClient',
+      'newCredit',
+      'editCredit',
+      'reports',
+      'users',
+      'audit',
+      'businessSettings',
+      'exportReports',
+      'preApkChecklist'
+    ];
 
     if (adminOnlyScreens.includes(screen) && !isAdmin) {
-      Alert.alert('Acceso restringido', 'Esta secciÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³n solo estÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ disponible para administradores.');
+      Alert.alert('Acceso restringido', 'Esta seccion solo esta disponible para administradores.');
       return;
     }
 
@@ -732,7 +872,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   };
 
-
   const updateClient = async (clientId: string, input: UpdateClientInput) => {
     if (!isAdmin) {
       Alert.alert('Acceso restringido', 'Solo un administrador puede editar clientes.');
@@ -741,16 +880,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     try {
       await updateDoc(doc(db, 'clientes', clientId), {
-        nombre: input.nombre,
-        documento: input.documento,
-        telefono: input.telefono,
-        direccion: input.direccion,
-        barrio: input.barrio,
-        estado: input.estado,
-        assignedToUid: input.assignedToUid ?? '',
-        assignedToEmail: input.assignedToEmail ?? '',
-        routeId: input.routeId ?? '',
-        routeName: input.routeName ?? '',
+        ...input,
         updatedAt: nowIso(),
         updatedBy: session.email
       });
@@ -762,9 +892,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       Alert.alert('Error Firebase', 'No se pudo actualizar el cliente.');
     }
   };
+
   const addCredit = async (input: NewCreditInput) => {
     if (!isAdmin) {
-      Alert.alert('Acceso restringido', 'Solo un administrador puede crear crÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©ditos.');
+      Alert.alert('Acceso restringido', 'Solo un administrador puede crear creditos.');
       return;
     }
 
@@ -783,80 +914,225 @@ export function AppProvider({ children }: { children: ReactNode }) {
         assignedToEmail: client?.assignedToEmail ?? ''
       });
 
-      Alert.alert('CrÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©dito creado', 'El crÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©dito fue creado correctamente.');
+      Alert.alert('Credito creado', 'El credito fue creado correctamente.');
       setCurrentScreen('credits');
     } catch (error) {
-      console.error('Error creando crÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©dito:', error);
-      Alert.alert('Error Firebase', 'No se pudo crear el crÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©dito.');
+      console.error('Error creando credito:', error);
+      Alert.alert('Error Firebase', 'No se pudo crear el credito.');
     }
   };
 
-
-  const updateCreditStatus = async (creditId: string, status: Credit['estado']) => {
+  const updateCreditStatus = async (creditId: string, status: CreditStatus) => {
     if (!isAdmin) {
-      Alert.alert('Acceso restringido', 'Solo un administrador puede cambiar el estado del crÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â©dito.');
+      Alert.alert('Acceso restringido', 'Solo un administrador puede cambiar el estado del credito.');
       return;
     }
 
     try {
-      const updateData: Partial<Credit> = {
-        estado: status
+      const updateData: Record<string, unknown> = {
+        estado: status,
+        updatedAt: nowIso(),
+        updatedBy: session.email
       };
 
-      if (status === 'pagado') {
+      if (status === 'pagado' || status === 'anulado') {
         updateData.saldoPendiente = 0;
       }
 
+      await updateDoc(doc(db, 'creditos', creditId), updateData);
+
+      Alert.alert('Credito actualizado', `El credito fue marcado como ${status}.`);
+    } catch (error) {
+      console.error('Error actualizando credito:', error);
+      Alert.alert('Error Firebase', 'No se pudo actualizar el credito.');
+    }
+  };
+
+  const updateCredit = async (creditId: string, input: UpdateCreditInput) => {
+    if (!isAdmin) {
+      Alert.alert('Acceso restringido', 'Solo un administrador puede editar creditos.');
+      return;
+    }
+
+    const localCredit = credits.find((credit) => credit.id === creditId);
+
+    if (!localCredit) {
+      Alert.alert('Credito no encontrado', 'No se encontro el credito que quieres editar.');
+      return;
+    }
+
+    if (localCredit.estado === 'anulado') {
+      Alert.alert('Credito anulado', 'No puedes editar un credito anulado.');
+      return;
+    }
+
+    try {
+      const activePayments = payments.filter(
+        (payment) => payment.creditoId === creditId && payment.estado !== 'anulado'
+      );
+
+      const totalPaid = activePayments.reduce((total, payment) => total + payment.valorPagado, 0);
+
+      if (input.valorTotal < totalPaid) {
+        Alert.alert('Valor total invalido', `Este credito ya tiene pagos por ${totalPaid}.`);
+        return;
+      }
+
+      const valorCuota = input.numeroCuotas > 0 ? Math.ceil(input.valorTotal / input.numeroCuotas) : input.valorTotal;
+      const saldoCalculado = Math.max(input.valorTotal - totalPaid, 0);
+      const nextStatus = input.estado === 'pagado' || saldoCalculado === 0 ? 'pagado' : input.estado;
+      const nextBalance = nextStatus === 'pagado' ? 0 : saldoCalculado;
+
       await updateDoc(doc(db, 'creditos', creditId), {
-        ...updateData,
+        valorPrestado: input.valorPrestado,
+        valorTotal: input.valorTotal,
+        saldoPendiente: nextBalance,
+        numeroCuotas: input.numeroCuotas,
+        valorCuota,
+        frecuencia: input.frecuencia,
+        fechaInicio: input.fechaInicio,
+        estado: nextStatus,
         updatedAt: nowIso(),
         updatedBy: session.email
       });
 
-      Alert.alert('CrÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â©dito actualizado', `El crÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â©dito fue marcado como ${status}.`);
+      await addDoc(collection(db, 'auditoria'), {
+        tipo: 'EDITAR_CREDITO',
+        descripcion: `Credito editado por ${session.email}`,
+        creditoId: creditId,
+        clienteId: localCredit.clienteId,
+        valor: input.valorTotal,
+        usuarioEmail: session.email,
+        createdAt: nowIso()
+      });
+
+      Alert.alert('Credito actualizado', 'Los cambios fueron guardados correctamente.');
+      setCurrentScreen('creditDetail');
     } catch (error) {
-      console.error('Error actualizando crÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â©dito:', error);
-      Alert.alert('Error Firebase', 'No se pudo actualizar el crÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â©dito.');
+      console.error('Error editando credito:', error);
+      Alert.alert('Error Firebase', 'No se pudo editar el credito.');
     }
   };
+
+  const cancelCredit = async (creditId: string, motivo = 'Credito anulado desde app') => {
+    if (!isAdmin) {
+      Alert.alert('Acceso restringido', 'Solo un administrador puede anular creditos.');
+      return;
+    }
+
+    const localCredit = credits.find((credit) => credit.id === creditId);
+
+    if (!localCredit) {
+      Alert.alert('Credito no encontrado', 'No se encontro el credito que quieres anular.');
+      return;
+    }
+
+    if (localCredit.estado === 'anulado') {
+      Alert.alert('Credito ya anulado', 'Este credito ya fue anulado anteriormente.');
+      return;
+    }
+
+    try {
+      await runTransaction(db, async (transaction) => {
+        const creditRef = doc(db, 'creditos', creditId);
+        const auditRef = doc(collection(db, 'auditoria'));
+        const creditSnap = await transaction.get(creditRef);
+
+        if (!creditSnap.exists()) {
+          throw new Error('El credito no existe en Firebase.');
+        }
+
+        const creditData = creditSnap.data();
+        const fecha = nowIso();
+
+        transaction.update(creditRef, {
+          estado: 'anulado',
+          saldoPendiente: 0,
+          updatedAt: fecha,
+          updatedBy: session.email,
+          motivoAnulacion: motivo,
+          anuladoPor: session.email,
+          anuladoEn: fecha
+        });
+
+        transaction.set(auditRef, {
+          tipo: 'ANULAR_CREDITO',
+          descripcion: `Credito anulado por ${session.email}`,
+          creditoId: creditId,
+          clienteId: localCredit.clienteId,
+          valor: Number(creditData.valorTotal || 0),
+          motivo,
+          usuarioEmail: session.email,
+          createdAt: fecha
+        });
+      });
+
+      Alert.alert('Credito anulado', 'El credito fue anulado y ya no suma en cartera.');
+    } catch (error) {
+      console.error('Error anulando credito:', error);
+      Alert.alert('Error Firebase', 'No se pudo anular el credito.');
+    }
+  };
+
   const addPayment = async (input: NewPaymentInput) => {
     try {
       const credit = credits.find((item) => item.id === input.creditoId);
 
       if (!credit) {
-        Alert.alert('CrÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©dito no encontrado', 'Selecciona un crÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©dito vÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡lido.');
+        Alert.alert('Credito no encontrado', 'Selecciona un credito valido.');
+        return;
+      }
+
+      if (credit.estado === 'pagado' || credit.estado === 'anulado') {
+        Alert.alert('Credito no disponible', 'Este credito no permite registrar pagos.');
         return;
       }
 
       const nextBalance = Math.max(credit.saldoPendiente - input.valorPagado, 0);
-      const nextStatus = nextBalance === 0 ? 'pagado' : credit.estado === 'vencido' ? 'vencido' : 'activo';
+      const nextStatus: CreditStatus = nextBalance === 0 ? 'pagado' : credit.estado === 'vencido' ? 'vencido' : 'activo';
 
       await addDoc(collection(db, 'pagos'), {
         ...input,
         clienteId: credit.clienteId,
         usuarioEmail: session.email,
+        estado: 'activo',
         createdAt: nowIso(),
         createdBy: session.email,
         assignedToUid: credit.assignedToUid ?? session.uid,
-        assignedToEmail: credit.assignedToEmail ?? session.email,
-        estado: 'activo'
+        assignedToEmail: credit.assignedToEmail ?? session.email
       });
 
       await updateDoc(doc(db, 'creditos', credit.id), {
         saldoPendiente: nextBalance,
-        estado: nextStatus
+        estado: nextStatus,
+        updatedAt: nowIso(),
+        updatedBy: session.email
       });
 
-      Alert.alert('Pago registrado', 'El saldo del crÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©dito fue actualizado.');
-      setCurrentScreen('payments');
+      setLastReceipt({
+        id: `recibo-${Date.now()}`,
+        clienteId: credit.clienteId,
+        clienteNombre: getClientName(credit.clienteId),
+        creditoId: credit.id,
+        valorPagado: input.valorPagado,
+        saldoAnterior: credit.saldoPendiente,
+        saldoNuevo: nextBalance,
+        metodoPago: input.metodoPago,
+        fechaPago: input.fechaPago,
+        observacion: input.observacion,
+        cobradorEmail: session.email,
+        createdAt: nowIso()
+      });
+
+      Alert.alert('Pago registrado', 'El saldo del credito fue actualizado.');
+      setCurrentScreen('paymentReceipt');
     } catch (error) {
       console.error('Error registrando pago:', error);
       Alert.alert('Error Firebase', 'No se pudo registrar el pago.');
     }
   };
 
-
-  const cancelPayment = async (paymentId: string, motivo = 'AnulaciÃƒÆ’Ã‚Â³n desde app') => {
+  const cancelPayment = async (paymentId: string, motivo = 'Anulacion desde app') => {
     if (!isAdmin) {
       Alert.alert('Acceso restringido', 'Solo un administrador puede anular pagos.');
       return;
@@ -865,7 +1141,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const localPayment = payments.find((payment) => payment.id === paymentId);
 
     if (!localPayment) {
-      Alert.alert('Pago no encontrado', 'No se encontrÃƒÆ’Ã‚Â³ el pago que quieres anular.');
+      Alert.alert('Pago no encontrado', 'No se encontro el pago que quieres anular.');
       return;
     }
 
@@ -883,35 +1159,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const paymentSnap = await transaction.get(paymentRef);
         const creditSnap = await transaction.get(creditRef);
 
-        if (!paymentSnap.exists()) {
-          throw new Error('El pago no existe en Firebase.');
-        }
-
-        if (!creditSnap.exists()) {
-          throw new Error('El crÃƒÆ’Ã‚Â©dito asociado no existe en Firebase.');
-        }
+        if (!paymentSnap.exists()) throw new Error('El pago no existe.');
+        if (!creditSnap.exists()) throw new Error('El credito asociado no existe.');
 
         const paymentData = paymentSnap.data();
         const creditData = creditSnap.data();
 
         if (paymentData.estado === 'anulado') {
-          throw new Error('El pago ya estÃƒÆ’Ã‚Â¡ anulado.');
+          throw new Error('El pago ya esta anulado.');
         }
 
         const valorPagado = Number(paymentData.valorPagado || 0);
         const saldoActual = Number(creditData.saldoPendiente || 0);
         const valorTotal = Number(creditData.valorTotal || 0);
-
-        const saldoDevuelto = valorTotal > 0
-          ? Math.min(valorTotal, saldoActual + valorPagado)
-          : saldoActual + valorPagado;
-
-        const nuevoEstadoCredito = saldoDevuelto === 0
-          ? 'pagado'
-          : creditData.estado === 'vencido'
-            ? 'vencido'
-            : 'activo';
-
+        const saldoDevuelto = valorTotal > 0 ? Math.min(valorTotal, saldoActual + valorPagado) : saldoActual + valorPagado;
+        const nuevoEstadoCredito = saldoDevuelto === 0 ? 'pagado' : creditData.estado === 'vencido' ? 'vencido' : 'activo';
         const fecha = nowIso();
 
         transaction.update(paymentRef, {
@@ -943,12 +1205,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
         });
       });
 
-      Alert.alert('Pago anulado', 'El pago fue anulado y el saldo del crÃƒÆ’Ã‚Â©dito fue actualizado.');
+      Alert.alert('Pago anulado', 'El pago fue anulado y el saldo del credito fue actualizado.');
     } catch (error) {
       console.error('Error anulando pago:', error);
       Alert.alert('Error Firebase', 'No se pudo anular el pago.');
     }
   };
+
   const addExpense = async (input: NewExpenseInput) => {
     try {
       await addDoc(collection(db, 'gastos'), {
@@ -998,9 +1261,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
 
     const existingKeys = new Set(
-      visits
-        .filter((visit) => visit.fecha === today)
-        .map((visit) => `${visit.fecha}-${visit.clienteId}`)
+      visits.filter((visit) => visit.fecha === today).map((visit) => `${visit.fecha}-${visit.clienteId}`)
     );
 
     const clientsToCreate = candidateClients.filter((client) => !existingKeys.has(`${today}-${client.id}`));
@@ -1040,12 +1301,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const updateVisitStatus = async (
-    visitId: string,
-    status: VisitStatus,
-    observacion = '',
-    promesaFecha = ''
-  ) => {
+  const updateVisitStatus = async (visitId: string, status: VisitStatus, observacion = '', promesaFecha = '') => {
     try {
       await updateDoc(doc(db, 'visitas', visitId), {
         estado: status,
@@ -1061,41 +1317,93 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   };
 
-
-  const updateBusinessSettings = async (input: NewBusinessSettingsInput) => {
-    if (!isAdmin) {
-      Alert.alert('Acceso restringido', 'Solo un administrador puede editar la configuración del negocio.');
-      return;
-    }
-
+  const createCashClosing = async (input: NewCashClosingInput) => {
     try {
-      await setDoc(doc(db, 'configuracion', 'negocio'), {
-        ...input,
-        updatedAt: nowIso(),
-        updatedBy: session.email
-      }, { merge: true });
+      const targetDate = input.fecha || todayKey();
+      const activePayments = payments.filter((payment) => payment.estado !== 'anulado');
+
+      const userPayments = activePayments.filter((payment) => {
+        if (payment.fechaPago !== targetDate) return false;
+        if (isAdmin) return true;
+        return payment.usuarioEmail === session.email || payment.assignedToUid === session.uid;
+      });
+
+      const userExpenses = expenses.filter((expense) => {
+        if (expense.fecha !== targetDate) return false;
+        if (isAdmin) return true;
+        return expense.createdBy === session.email;
+      });
+
+      const totalPagos = userPayments.reduce((total, payment) => total + payment.valorPagado, 0);
+      const totalGastos = userExpenses.reduce((total, expense) => total + expense.valor, 0);
+      const cajaEsperada = totalPagos - totalGastos;
+      const diferencia = input.cajaEntregada - cajaEsperada;
+
+      await addDoc(collection(db, 'cierresCaja'), {
+        fecha: targetDate,
+        usuarioEmail: session.email,
+        usuarioUid: session.uid,
+        totalPagos,
+        totalGastos,
+        cajaEsperada,
+        cajaEntregada: input.cajaEntregada,
+        diferencia,
+        observacion: input.observacion,
+        createdAt: nowIso(),
+        createdBy: session.email
+      });
 
       await addDoc(collection(db, 'auditoria'), {
-        tipo: 'CONFIG_NEGOCIO',
-        descripcion: `Configuración del negocio actualizada por ${session.email}`,
+        tipo: 'CIERRE_CAJA',
+        descripcion: `Cierre de caja registrado por ${session.email}`,
+        valor: input.cajaEntregada,
         usuarioEmail: session.email,
         createdAt: nowIso()
       });
 
-      Alert.alert('Configuración guardada', 'Los datos del negocio fueron actualizados.');
+      Alert.alert('Caja cerrada', diferencia === 0 ? 'La caja fue cerrada sin diferencias.' : `Diferencia: ${diferencia}`);
     } catch (error) {
-      console.error('Error guardando configuración:', error);
-      Alert.alert('Error Firebase', 'No se pudo guardar la configuración.');
+      console.error('Error cerrando caja:', error);
+      Alert.alert('Error Firebase', 'No se pudo cerrar la caja.');
     }
   };
-  const updateUserRole = async (userId: string, role: UserRole) => {
+
+  const updateBusinessSettings = async (input: NewBusinessSettingsInput) => {
     if (!isAdmin) {
-      Alert.alert('Acceso restringido', 'Solo un administrador puede cambiar roles.');
+      Alert.alert('Acceso restringido', 'Solo un administrador puede editar la configuracion del negocio.');
       return;
     }
 
+    try {
+      await setDoc(
+        doc(db, 'configuracion', 'negocio'),
+        {
+          ...input,
+          updatedAt: nowIso(),
+          updatedBy: session.email
+        },
+        { merge: true }
+      );
+
+      await addDoc(collection(db, 'auditoria'), {
+        tipo: 'CONFIG_NEGOCIO',
+        descripcion: `Configuracion del negocio actualizada por ${session.email}`,
+        usuarioEmail: session.email,
+        createdAt: nowIso()
+      });
+
+      Alert.alert('Configuracion guardada', 'Los datos del negocio fueron actualizados.');
+    } catch (error) {
+      console.error('Error guardando configuracion:', error);
+      Alert.alert('Error Firebase', 'No se pudo guardar la configuracion.');
+    }
+  };
+
+  const updateUserRole = async (userId: string, role: UserRole) => {
+    if (!isAdmin) return;
+
     if (userId === session.uid && role !== 'admin') {
-      Alert.alert('AcciÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³n no permitida', 'No puedes quitarte tu propio rol de administrador.');
+      Alert.alert('Accion no permitida', 'No puedes quitarte tu propio rol de administrador.');
       return;
     }
 
@@ -1109,13 +1417,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   };
 
   const toggleUserActive = async (userId: string, activo: boolean) => {
-    if (!isAdmin) {
-      Alert.alert('Acceso restringido', 'Solo un administrador puede activar o desactivar usuarios.');
-      return;
-    }
+    if (!isAdmin) return;
 
     if (userId === session.uid && !activo) {
-      Alert.alert('AcciÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³n no permitida', 'No puedes desactivar tu propio usuario.');
+      Alert.alert('Accion no permitida', 'No puedes desactivar tu propio usuario.');
       return;
     }
 
@@ -1129,10 +1434,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   };
 
   const assignClientToCollector = async (clientId: string, collector: UserProfile | null) => {
-    if (!isAdmin) {
-      Alert.alert('Acceso restringido', 'Solo un administrador puede asignar clientes.');
-      return;
-    }
+    if (!isAdmin) return;
 
     try {
       await updateDoc(doc(db, 'clientes', clientId), {
@@ -1140,10 +1442,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         assignedToEmail: collector?.email ?? ''
       });
 
-      Alert.alert(
-        'AsignaciÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³n actualizada',
-        collector ? `Cliente asignado a ${collector.email}.` : 'Cliente quedÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³ sin cobrador asignado.'
-      );
+      Alert.alert('Asignacion actualizada', collector ? `Cliente asignado a ${collector.email}.` : 'Cliente sin cobrador.');
     } catch (error) {
       console.error('Error asignando cliente:', error);
       Alert.alert('Error Firebase', 'No se pudo asignar el cliente.');
@@ -1151,10 +1450,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   };
 
   const assignClientToRoute = async (clientId: string, route: Route | null) => {
-    if (!isAdmin) {
-      Alert.alert('Acceso restringido', 'Solo un administrador puede asignar rutas.');
-      return;
-    }
+    if (!isAdmin) return;
 
     try {
       await updateDoc(doc(db, 'clientes', clientId), {
@@ -1162,10 +1458,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         routeName: route?.nombre ?? ''
       });
 
-      Alert.alert(
-        'Ruta actualizada',
-        route ? `Cliente asignado a la ruta ${route.nombre}.` : 'Cliente quedÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³ sin ruta.'
-      );
+      Alert.alert('Ruta actualizada', route ? `Cliente asignado a la ruta ${route.nombre}.` : 'Cliente sin ruta.');
     } catch (error) {
       console.error('Error asignando ruta:', error);
       Alert.alert('Error Firebase', 'No se pudo asignar la ruta.');
@@ -1174,14 +1467,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const changeClientStatus = async (clientId: string, status: ClientStatus) => {
     try {
-      await updateDoc(doc(db, 'clientes', clientId), {
-        estado: status
-      });
-
-      Alert.alert(
-        'Estado actualizado',
-        status === 'al-dia' ? 'El cliente quedÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³ marcado como Al dÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­a.' : 'El cliente quedÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³ marcado como En mora.'
-      );
+      await updateDoc(doc(db, 'clientes', clientId), { estado: status });
+      Alert.alert('Estado actualizado', status === 'al-dia' ? 'Cliente al dia.' : 'Cliente en mora.');
     } catch (error) {
       console.error('Error cambiando estado:', error);
       Alert.alert('Error Firebase', 'No se pudo cambiar el estado del cliente.');
@@ -1194,6 +1481,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     currentScreen,
     selectedClientId,
     selectedClient,
+    selectedCreditId,
+    selectedCredit,
     clients,
     credits,
     payments,
@@ -1201,6 +1490,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     users,
     routes,
     visits,
+    cashClosings,
+    auditLogs,
+    businessSettings,
+    lastReceipt,
     loadingClients,
     isAdmin,
     login,
@@ -1213,12 +1506,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     updateClient,
     addCredit,
     updateCreditStatus,
+    updateCredit,
+    cancelCredit,
     addPayment,
     cancelPayment,
     addExpense,
     addRoute,
     createTodayVisits,
     updateVisitStatus,
+    createCashClosing,
+    updateBusinessSettings,
     updateUserRole,
     toggleUserActive,
     assignClientToCollector,

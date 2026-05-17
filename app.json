@@ -4,19 +4,19 @@
     "slug": "app-cobros",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "platforms": [
+      "android"
+    ],
     "userInterfaceStyle": "light",
+    "icon": "./assets/icon.png",
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/splash.png",
       "resizeMode": "contain",
       "backgroundColor": "#2563EB"
     },
     "assetBundlePatterns": [
       "**/*"
     ],
-    "ios": {
-      "supportsTablet": false
-    },
     "android": {
       "package": "com.keinerdeviam.appcobros",
       "versionCode": 1,
@@ -25,9 +25,6 @@
         "backgroundColor": "#2563EB"
       },
       "permissions": []
-    },
-    "web": {
-      "favicon": "./assets/favicon.png"
     },
     "extra": {
       "eas": {

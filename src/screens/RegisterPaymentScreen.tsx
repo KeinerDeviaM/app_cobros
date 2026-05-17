@@ -36,7 +36,7 @@ export function RegisterPaymentScreen() {
   const [loading, setLoading] = useState(false);
 
   const availableCredits = useMemo(() => {
-    const activeCredits = credits.filter((credit) => credit.estado !== 'pagado' && credit.saldoPendiente > 0);
+    const activeCredits = credits.filter((credit) => credit.estado !== 'pagado' && credit.estado !== 'anulado' && credit.saldoPendiente > 0);
 
     if (useClientFilter && selectedClient) {
       return activeCredits.filter((credit) => credit.clienteId === selectedClient.id);
@@ -69,24 +69,24 @@ export function RegisterPaymentScreen() {
 
   const handleSubmit = async () => {
     if (!selectedCreditId) {
-      Alert.alert('Selecciona un crédito', 'Debes seleccionar el crédito al que quieres registrar el pago.');
+      Alert.alert('Selecciona un crÃ©dito', 'Debes seleccionar el crÃ©dito al que quieres registrar el pago.');
       return;
     }
 
     if (!selectedCreditData) {
-      Alert.alert('Crédito inválido', 'El crédito seleccionado no está disponible para pagos.');
+      Alert.alert('CrÃ©dito invÃ¡lido', 'El crÃ©dito seleccionado no estÃ¡ disponible para pagos.');
       return;
     }
 
     if (selectedCreditData.estado === 'pagado' || selectedCreditData.saldoPendiente <= 0) {
-      Alert.alert('Crédito pagado', 'Este crédito ya está pagado y no permite más pagos.');
+      Alert.alert('CrÃ©dito pagado', 'Este crÃ©dito ya estÃ¡ pagado y no permite mÃ¡s pagos.');
       return;
     }
 
     const amount = parseMoney(valorPagado);
 
     if (!isPositiveMoney(amount)) {
-      Alert.alert('Valor inválido', 'Ingresa un valor de pago mayor que cero.');
+      Alert.alert('Valor invÃ¡lido', 'Ingresa un valor de pago mayor que cero.');
       return;
     }
 
@@ -99,7 +99,7 @@ export function RegisterPaymentScreen() {
     }
 
     if (!isValidDateKey(fechaPago)) {
-      Alert.alert('Fecha inválida', 'La fecha debe tener formato YYYY-MM-DD.');
+      Alert.alert('Fecha invÃ¡lida', 'La fecha debe tener formato YYYY-MM-DD.');
       return;
     }
 
@@ -145,10 +145,10 @@ export function RegisterPaymentScreen() {
               </View>
             </View>
 
-            <Text style={styles.filterText}>Mostrando solo créditos de este cliente.</Text>
+            <Text style={styles.filterText}>Mostrando solo crÃ©ditos de este cliente.</Text>
 
             <Button
-              title="Ver créditos de todos los clientes"
+              title="Ver crÃ©ditos de todos los clientes"
               variant="secondary"
               onPress={() => setUseClientFilter(false)}
               style={styles.smallButton}
@@ -157,10 +157,10 @@ export function RegisterPaymentScreen() {
         ) : selectedClient ? (
           <Card style={styles.clientCard}>
             <Text style={styles.filterTitle}>Filtro de cliente desactivado</Text>
-            <Text style={styles.filterText}>Ahora estás viendo créditos de todos los clientes.</Text>
+            <Text style={styles.filterText}>Ahora estÃ¡s viendo crÃ©ditos de todos los clientes.</Text>
 
             <Button
-              title={`Volver a créditos de ${selectedClient.nombre}`}
+              title={`Volver a crÃ©ditos de ${selectedClient.nombre}`}
               variant="secondary"
               onPress={() => setUseClientFilter(true)}
               style={styles.smallButton}
@@ -168,15 +168,15 @@ export function RegisterPaymentScreen() {
           </Card>
         ) : null}
 
-        <Text style={styles.sectionTitle}>Selecciona el crédito</Text>
+        <Text style={styles.sectionTitle}>Selecciona el crÃ©dito</Text>
 
         {availableCredits.length === 0 ? (
           <EmptyState
-            title="Sin créditos disponibles"
+            title="Sin crÃ©ditos disponibles"
             message={
               selectedClient && useClientFilter
-                ? 'Este cliente no tiene créditos activos para registrar pagos.'
-                : 'No hay créditos activos disponibles para registrar pagos.'
+                ? 'Este cliente no tiene crÃ©ditos activos para registrar pagos.'
+                : 'No hay crÃ©ditos activos disponibles para registrar pagos.'
             }
           />
         ) : (
@@ -203,9 +203,9 @@ export function RegisterPaymentScreen() {
                   <StatusBadge type={credit.estado === 'vencido' ? 'danger' : 'warning'} label={credit.estado} />
                 </View>
 
-                <Text style={styles.creditMeta}>Cuota: {formatMoney(credit.valorCuota)} · {credit.frecuencia}</Text>
+                <Text style={styles.creditMeta}>Cuota: {formatMoney(credit.valorCuota)} Â· {credit.frecuencia}</Text>
 
-                {selected ? <Text style={styles.selectedText}>Crédito seleccionado</Text> : null}
+                {selected ? <Text style={styles.selectedText}>CrÃ©dito seleccionado</Text> : null}
               </Pressable>
             );
           })
@@ -223,14 +223,14 @@ export function RegisterPaymentScreen() {
 
           <Input
             label="Valor pagado"
-            icon="💰"
+            icon="ðŸ’°"
             value={valorPagado}
             onChangeText={setValorPagado}
             placeholder="Ej: 20000"
             keyboardType="numeric"
           />
 
-          <Text style={styles.label}>Método de pago</Text>
+          <Text style={styles.label}>MÃ©todo de pago</Text>
           <View style={styles.methodList}>
             {paymentMethods.map((method) => {
               const selected = method === metodoPago;
@@ -249,8 +249,8 @@ export function RegisterPaymentScreen() {
             })}
           </View>
 
-          <Input label="Fecha del pago" icon="📅" value={fechaPago} onChangeText={setFechaPago} placeholder="YYYY-MM-DD" />
-          <Input label="Observaciones" icon="📝" value={observacion} onChangeText={setObservacion} placeholder="Opcional" />
+          <Input label="Fecha del pago" icon="ðŸ“…" value={fechaPago} onChangeText={setFechaPago} placeholder="YYYY-MM-DD" />
+          <Input label="Observaciones" icon="ðŸ“" value={observacion} onChangeText={setObservacion} placeholder="Opcional" />
 
           <Button title="Registrar pago" onPress={handleSubmit} loading={loading} style={styles.submitButton} />
         </Card>

@@ -66,7 +66,15 @@ service cloud.firestore {
     match /creditos/{creditoId} {
       allow read: if esAdmin() || (esCobrador() && resource.data.assignedToUid == request.auth.uid);
       allow create, delete: if esAdmin();
-      allow update: if esAdmin() || (esCobrador() && resource.data.assignedToUid == request.auth.uid);
+
+      allow update: if esAdmin()
+        || (
+          esCobrador()
+          && resource.data.assignedToUid == request.auth.uid
+          && request.resource.data.assignedToUid == resource.data.assignedToUid
+          && request.resource.data.assignedToEmail == resource.data.assignedToEmail
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['saldoPendiente', 'estado', 'updatedAt', 'updatedBy'])
+        );
     }
 
     match /pagos/{pagoId} {

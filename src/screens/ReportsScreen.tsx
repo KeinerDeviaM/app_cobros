@@ -26,11 +26,10 @@ export function ReportsScreen() {
   } = useApp();
 
   const [tab, setTab] = useState<ReportTab>('general');
-
   const today = todayKey();
 
   const activePayments = useMemo(() => {
-    return activePayments.filter((payment) => payment.estado !== 'anulado');
+    return payments.filter((payment) => payment.estado !== 'anulado');
   }, [payments]);
 
   const collectors = useMemo(() => {
@@ -39,7 +38,7 @@ export function ReportsScreen() {
 
   const todayPayments = useMemo(() => {
     return activePayments.filter((payment) => payment.fechaPago === today);
-  }, [payments, today]);
+  }, [activePayments, today]);
 
   const todayExpenses = useMemo(() => {
     return expenses.filter((expense) => expense.fecha === today);
@@ -52,9 +51,9 @@ export function ReportsScreen() {
   const collectorReports = useMemo(() => {
     return collectors.map((collector) => {
       const collectorClients = clients.filter((client) => client.assignedToUid === collector.uid);
-      const collectorCredits = credits.filter((credit) => credit.assignedToUid === collector.uid);
+      const collectorCredits = credits.filter((credit) => credit.assignedToUid === collector.uid && credit.estado !== 'anulado');
       const collectorPayments = activePayments.filter((payment) => payment.assignedToUid === collector.uid);
-      const collectorPaymentsToday = todayactivePayments.filter((payment) => payment.assignedToUid === collector.uid);
+      const collectorPaymentsToday = todayPayments.filter((payment) => payment.assignedToUid === collector.uid);
       const collectorVisitsToday = todayVisits.filter((visit) => visit.assignedToUid === collector.uid);
 
       const pending = collectorCredits.reduce((total, credit) => total + credit.saldoPendiente, 0);
@@ -74,15 +73,15 @@ export function ReportsScreen() {
         promises: collectorVisitsToday.filter((visit) => visit.estado === 'promesa').length
       };
     });
-  }, [clients, collectors, credits, activePayments, todayPayments, todayVisits]);
+  }, [activePayments, clients, collectors, credits, todayPayments, todayVisits]);
 
   const routeReports = useMemo(() => {
     return routes.map((route) => {
       const routeClients = clients.filter((client) => client.routeId === route.id);
       const routeClientIds = new Set(routeClients.map((client) => client.id));
-      const routeCredits = credits.filter((credit) => routeClientIds.has(credit.clienteId));
+      const routeCredits = credits.filter((credit) => routeClientIds.has(credit.clienteId) && credit.estado !== 'anulado');
       const routePayments = activePayments.filter((payment) => routeClientIds.has(payment.clienteId));
-      const routePaymentsToday = todayactivePayments.filter((payment) => routeClientIds.has(payment.clienteId));
+      const routePaymentsToday = todayPayments.filter((payment) => routeClientIds.has(payment.clienteId));
       const routeVisitsToday = todayVisits.filter((visit) => visit.routeId === route.id);
 
       const pending = routeCredits.reduce((total, credit) => total + credit.saldoPendiente, 0);
@@ -103,7 +102,7 @@ export function ReportsScreen() {
         promises: routeVisitsToday.filter((visit) => visit.estado === 'promesa').length
       };
     });
-  }, [clients, credits, activePayments, routes, todayPayments, todayVisits]);
+  }, [activePayments, clients, credits, routes, todayPayments, todayVisits]);
 
   const visitSummary = useMemo(() => {
     return {
@@ -144,7 +143,7 @@ export function ReportsScreen() {
             </View>
 
             <View style={styles.grid}>
-              <ReportMetric title="CrÃ©ditos activos" value={String(stats.activeCredits)} />
+              <ReportMetric title="Creditos activos" value={String(stats.activeCredits)} />
               <ReportMetric title="Pendiente total" value={formatMoney(stats.pendingTotal)} danger />
             </View>
 
@@ -173,20 +172,13 @@ export function ReportsScreen() {
                 <Text style={styles.totalValue}>{formatMoney(todayPaymentTotal - todayExpenseTotal)}</Text>
               </View>
             </Card>
-
-            <Card style={styles.sectionCard}>
-              <Text style={styles.sectionTitle}>Resumen rÃ¡pido</Text>
-              <Text style={styles.paragraph}>
-                La cartera pendiente actual es de {formatMoney(stats.pendingTotal)}. Hoy se han recaudado {formatMoney(todayPaymentTotal)} y se han registrado gastos por {formatMoney(todayExpenseTotal)}.
-              </Text>
-            </Card>
           </>
         ) : null}
 
         {tab === 'cobradores' ? (
           <>
             {collectorReports.length === 0 ? (
-              <EmptyState title="Sin cobradores" message="TodavÃ­a no hay usuarios con rol cobrador." />
+              <EmptyState title="Sin cobradores" message="Todavia no hay usuarios con rol cobrador." />
             ) : (
               collectorReports.map((report) => (
                 <Card key={report.collector.id} style={styles.sectionCard}>
@@ -197,7 +189,7 @@ export function ReportsScreen() {
 
                   <View style={styles.miniGrid}>
                     <MiniMetric title="Clientes" value={String(report.clients)} />
-                    <MiniMetric title="CrÃ©ditos" value={String(report.activeCredits)} />
+                    <MiniMetric title="Creditos" value={String(report.activeCredits)} />
                     <MiniMetric title="Cobrado hoy" value={formatMoney(report.collectedToday)} />
                     <MiniMetric title="Pendiente" value={formatMoney(report.pending)} danger />
                   </View>
@@ -230,18 +222,12 @@ export function ReportsScreen() {
         {tab === 'rutas' ? (
           <>
             {routeReports.length === 0 ? (
-              <EmptyState title="Sin rutas" message="TodavÃ­a no hay rutas creadas." />
+              <EmptyState title="Sin rutas" message="Todavia no hay rutas creadas." />
             ) : (
               routeReports.map((report) => (
                 <Card key={report.route.id} style={styles.sectionCard}>
                   <Text style={styles.cardTitle}>{report.route.nombre}</Text>
-                  <Text style={styles.cardSubtitle}>
-                    {report.route.zona || 'Sin zona registrada'}
-                  </Text>
-
-                  {report.route.descripcion ? (
-                    <Text style={styles.paragraph}>{report.route.descripcion}</Text>
-                  ) : null}
+                  <Text style={styles.cardSubtitle}>{report.route.zona || 'Sin zona registrada'}</Text>
 
                   <View style={styles.miniGrid}>
                     <MiniMetric title="Clientes" value={String(report.clients)} />
@@ -251,7 +237,7 @@ export function ReportsScreen() {
                   </View>
 
                   <View style={styles.row}>
-                    <Text style={styles.rowLabel}>CrÃ©ditos activos</Text>
+                    <Text style={styles.rowLabel}>Creditos activos</Text>
                     <Text style={styles.rowValue}>{report.activeCredits}</Text>
                   </View>
 
@@ -263,11 +249,6 @@ export function ReportsScreen() {
                   <View style={styles.row}>
                     <Text style={styles.rowLabel}>Visitas gestionadas hoy</Text>
                     <Text style={styles.rowValue}>{report.visitsDone}/{report.visitsToday}</Text>
-                  </View>
-
-                  <View style={styles.row}>
-                    <Text style={styles.rowLabel}>Promesas de pago</Text>
-                    <Text style={styles.rowValue}>{report.promises}</Text>
                   </View>
                 </Card>
               ))
@@ -294,15 +275,11 @@ export function ReportsScreen() {
 
             <View style={styles.grid}>
               <ReportMetric title="Promesas" value={String(visitSummary.promises)} />
-              <ReportMetric title="Avance" value={visitSummary.total === 0 ? '0%' : `${Math.round(((visitSummary.total - visitSummary.pending) / visitSummary.total) * 100)}%`} />
+              <ReportMetric
+                title="Avance"
+                value={visitSummary.total === 0 ? '0%' : `${Math.round(((visitSummary.total - visitSummary.pending) / visitSummary.total) * 100)}%`}
+              />
             </View>
-
-            <Card style={styles.sectionCard}>
-              <Text style={styles.sectionTitle}>Lectura del dÃ­a</Text>
-              <Text style={styles.paragraph}>
-                Hoy se han gestionado {visitSummary.total - visitSummary.pending} de {visitSummary.total} visitas. Hay {visitSummary.promises} promesas de pago registradas y {visitSummary.pending} visitas pendientes.
-              </Text>
-            </Card>
           </>
         ) : null}
       </Screen>
@@ -325,13 +302,8 @@ function ReportTabButton({
   const selected = value === current;
 
   return (
-    <Pressable
-      style={[styles.tabButton, selected ? styles.tabButtonSelected : null]}
-      onPress={() => onPress(value)}
-    >
-      <Text style={[styles.tabText, selected ? styles.tabTextSelected : null]}>
-        {label}
-      </Text>
+    <Pressable style={[styles.tabButton, selected ? styles.tabButtonSelected : null]} onPress={() => onPress(value)}>
+      <Text style={[styles.tabText, selected ? styles.tabTextSelected : null]}>{label}</Text>
     </Pressable>
   );
 }
@@ -371,151 +343,32 @@ function MiniMetric({
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: colors.background
-  },
-  title: {
-    color: colors.text,
-    fontSize: 22,
-    fontWeight: '900'
-  },
-  subtitle: {
-    color: colors.muted,
-    marginTop: 5,
-    marginBottom: 16,
-    fontWeight: '700',
-    lineHeight: 20
-  },
-  tabs: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 16
-  },
-  tabButton: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: '#FFFFFF'
-  },
-  tabButtonSelected: {
-    borderColor: colors.primary,
-    backgroundColor: colors.primarySoft
-  },
-  tabText: {
-    color: colors.muted,
-    fontWeight: '900',
-    fontSize: 12
-  },
-  tabTextSelected: {
-    color: colors.primary
-  },
-  grid: {
-    flexDirection: 'row',
-    gap: 10,
-    marginBottom: 10
-  },
-  metricCard: {
-    flex: 1
-  },
-  metricTitle: {
-    color: colors.muted,
-    fontWeight: '800',
-    fontSize: 12
-  },
-  metricValue: {
-    color: colors.primary,
-    fontWeight: '900',
-    fontSize: 18,
-    marginTop: 6
-  },
-  metricDanger: {
-    color: colors.danger
-  },
-  sectionCard: {
-    marginBottom: 12
-  },
-  sectionTitle: {
-    color: colors.text,
-    fontSize: 17,
-    fontWeight: '900',
-    marginBottom: 10
-  },
-  cardTitle: {
-    color: colors.text,
-    fontWeight: '900',
-    fontSize: 17
-  },
-  cardSubtitle: {
-    color: colors.muted,
-    fontWeight: '800',
-    marginTop: 4,
-    marginBottom: 8
-  },
-  paragraph: {
-    color: colors.muted,
-    fontWeight: '700',
-    lineHeight: 21
-  },
-  row: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 10,
-    marginTop: 9
-  },
-  rowLabel: {
-    color: colors.muted,
-    fontWeight: '700',
-    flex: 1
-  },
-  rowValue: {
-    color: colors.primary,
-    fontWeight: '900'
-  },
-  rowValueDanger: {
-    color: colors.danger,
-    fontWeight: '900'
-  },
-  divider: {
-    height: 1,
-    backgroundColor: colors.border,
-    marginTop: 12,
-    marginBottom: 4
-  },
-  totalLabel: {
-    color: colors.text,
-    fontWeight: '900',
-    flex: 1
-  },
-  totalValue: {
-    color: colors.primary,
-    fontWeight: '900',
-    fontSize: 16
-  },
-  miniGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 12,
-    marginBottom: 6
-  },
-  miniMetric: {
-    width: '48%',
-    backgroundColor: colors.background,
-    borderRadius: 14,
-    padding: 10
-  },
-  miniTitle: {
-    color: colors.muted,
-    fontSize: 11,
-    fontWeight: '800'
-  },
-  miniValue: {
-    color: colors.primary,
-    fontWeight: '900',
-    marginTop: 4
-  }
+  root: { flex: 1, backgroundColor: colors.background },
+  title: { color: colors.text, fontSize: 22, fontWeight: '900' },
+  subtitle: { color: colors.muted, marginTop: 5, marginBottom: 16, fontWeight: '700', lineHeight: 20 },
+  tabs: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
+  tabButton: { borderWidth: 1, borderColor: colors.border, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#FFFFFF' },
+  tabButtonSelected: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
+  tabText: { color: colors.muted, fontWeight: '900', fontSize: 12 },
+  tabTextSelected: { color: colors.primary },
+  grid: { flexDirection: 'row', gap: 10, marginBottom: 10 },
+  metricCard: { flex: 1 },
+  metricTitle: { color: colors.muted, fontWeight: '800', fontSize: 12 },
+  metricValue: { color: colors.primary, fontWeight: '900', fontSize: 18, marginTop: 6 },
+  metricDanger: { color: colors.danger },
+  sectionCard: { marginBottom: 12 },
+  sectionTitle: { color: colors.text, fontSize: 17, fontWeight: '900', marginBottom: 10 },
+  cardTitle: { color: colors.text, fontWeight: '900', fontSize: 17 },
+  cardSubtitle: { color: colors.muted, fontWeight: '800', marginTop: 4, marginBottom: 8 },
+  row: { flexDirection: 'row', justifyContent: 'space-between', gap: 10, marginTop: 9 },
+  rowLabel: { color: colors.muted, fontWeight: '700', flex: 1 },
+  rowValue: { color: colors.primary, fontWeight: '900' },
+  rowValueDanger: { color: colors.danger, fontWeight: '900' },
+  divider: { height: 1, backgroundColor: colors.border, marginTop: 12, marginBottom: 4 },
+  totalLabel: { color: colors.text, fontWeight: '900', flex: 1 },
+  totalValue: { color: colors.primary, fontWeight: '900', fontSize: 16 },
+  miniGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12, marginBottom: 6 },
+  miniMetric: { width: '48%', backgroundColor: colors.background, borderRadius: 14, padding: 10 },
+  miniTitle: { color: colors.muted, fontSize: 11, fontWeight: '800' },
+  miniValue: { color: colors.primary, fontWeight: '900', marginTop: 4 }
 });

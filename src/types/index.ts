@@ -5,6 +5,7 @@ export type ScreenName =
   | 'editClient'
   | 'credits'
   | 'creditDetail'
+  | 'editCredit'
   | 'payments'
   | 'paymentReceipt'
   | 'newClient'
@@ -24,11 +25,10 @@ export type ScreenName =
 export type UserRole = 'admin' | 'cobrador';
 
 export type ClientStatus = 'al-dia' | 'en-mora';
-export type CreditStatus = 'activo' | 'pagado' | 'vencido';
+export type CreditStatus = 'activo' | 'pagado' | 'vencido' | 'anulado';
 export type Frequency = 'Diaria' | 'Semanal' | 'Quincenal' | 'Mensual';
 export type PaymentMethod = 'Efectivo' | 'Transferencia' | 'Nequi' | 'Daviplata' | 'Otro';
 export type PaymentStatus = 'activo' | 'anulado';
-
 export type VisitStatus = 'pendiente' | 'visitado' | 'pago' | 'no-pago' | 'no-estaba' | 'promesa';
 
 export interface Session {
@@ -91,6 +91,9 @@ export interface Credit {
   updatedBy?: string;
   assignedToUid?: string;
   assignedToEmail?: string;
+  anuladoPor?: string;
+  anuladoEn?: string;
+  motivoAnulacion?: string;
 }
 
 export interface Payment {
@@ -143,17 +146,6 @@ export interface Visit {
   updatedAt?: string;
 }
 
-export interface AuditLog {
-  id: string;
-  tipo: string;
-  descripcion: string;
-  pagoId?: string;
-  creditoId?: string;
-  clienteId?: string;
-  valor?: number;
-  usuarioEmail: string;
-  createdAt: string;
-}
 export interface CashClosing {
   id: string;
   fecha: string;
@@ -168,6 +160,32 @@ export interface CashClosing {
   createdAt: string;
   createdBy?: string;
 }
+
+export interface AuditLog {
+  id: string;
+  tipo: string;
+  descripcion: string;
+  pagoId?: string;
+  creditoId?: string;
+  clienteId?: string;
+  valor?: number;
+  motivo?: string;
+  usuarioEmail: string;
+  createdAt: string;
+}
+
+export interface BusinessSettings {
+  id: string;
+  businessName: string;
+  appName: string;
+  phone: string;
+  address: string;
+  receiptMessage: string;
+  currency: string;
+  updatedAt?: string;
+  updatedBy?: string;
+}
+
 export interface PaymentReceipt {
   id: string;
   clienteId: string;
@@ -181,15 +199,4 @@ export interface PaymentReceipt {
   observacion: string;
   cobradorEmail: string;
   createdAt: string;
-}
-export interface BusinessSettings {
-  id: string;
-  businessName: string;
-  appName: string;
-  phone: string;
-  address: string;
-  receiptMessage: string;
-  currency: string;
-  updatedAt?: string;
-  updatedBy?: string;
 }
