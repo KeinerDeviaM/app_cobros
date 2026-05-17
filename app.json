@@ -1,8 +1,8 @@
-﻿{
+{
     "expo":  {
-                 "name":  "App Cobros",
+                 "name":  "CobroApp",
                  "slug":  "app-cobros",
-                 "version":  "1.0.3",
+                 "version":  "1.0.9",
                  "orientation":  "portrait",
                  "platforms":  [
                                    "android"
@@ -12,20 +12,22 @@
                  "splash":  {
                                 "image":  "./assets/splash.png",
                                 "resizeMode":  "contain",
-                                "backgroundColor":  "#2563EB"
+                                "backgroundColor":  "#111827"
                             },
                  "assetBundlePatterns":  [
                                              "**/*"
                                          ],
                  "android":  {
                                  "package":  "com.keinerdeviam.appcobros",
-                                 "versionCode":  4,
+                                 "versionCode":  10,
                                  "adaptiveIcon":  {
                                                       "foregroundImage":  "./assets/adaptive-icon.png",
                                                       "backgroundColor":  "#2563EB"
                                                   },
                                  "permissions":  [
-
+                                                     "INTERNET",
+                                                     "ACCESS_NETWORK_STATE",
+                                                     "POST_NOTIFICATIONS"
                                                  ]
                              },
                  "extra":  {
@@ -33,6 +35,13 @@
                                            "projectId":  "f8d05551-9a3a-4003-bd68-8651a54af660"
                                        }
                            },
-                 "owner":  "keiner_devia"
+                 "owner":  "keiner_devia",
+                 "notification":  {
+                                      "icon":  "./assets/notification-icon.png",
+                                      "color":  "#2563EB"
+                                  },
+                 "plugins":  [
+                                 "expo-notifications"
+                             ]
              }
 }

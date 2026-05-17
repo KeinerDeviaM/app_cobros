@@ -34,6 +34,7 @@ import { PreApkChecklistScreen } from './src/screens/PreApkChecklistScreen';
 import { MoreScreen } from './src/screens/MoreScreen';
 import { HelpScreen } from './src/screens/HelpScreen';
 import { OfflineStatusScreen } from './src/screens/OfflineStatusScreen';
+import { RemindersScreen } from './src/screens/RemindersScreen';
 import { colors } from './src/theme/colors';
 
 function LoadingScreen() {
@@ -129,6 +130,8 @@ function Root() {
       return <HelpScreen />;
     case 'offlineStatus':
       return <OfflineStatusScreen />;
+    case 'reminders':
+      return <RemindersScreen />;
     case 'dashboard':
     default:
       return <DashboardScreen />;

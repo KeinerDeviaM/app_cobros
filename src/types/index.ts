@@ -8,6 +8,7 @@ export type ScreenName =
   | 'dataBackup'
   | 'help'
   | 'offlineStatus'
+  | 'reminders'
   | 'editClient'
   | 'credits'
   | 'creditDetail'
