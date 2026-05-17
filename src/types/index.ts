@@ -6,6 +6,8 @@ export type ScreenName =
   | 'globalSearch'
   | 'advancedAnalytics'
   | 'dataBackup'
+  | 'help'
+  | 'offlineStatus'
   | 'editClient'
   | 'credits'
   | 'creditDetail'
@@ -200,7 +202,11 @@ export interface BusinessSettings {
   phone: string;
   address: string;
   receiptMessage: string;
+  receiptLegalText: string;
+  receiptFooter: string;
   currency: string;
+  primaryColor: string;
+  secondaryColor: string;
   updatedAt?: string;
   updatedBy?: string;
 }

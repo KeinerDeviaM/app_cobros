@@ -32,6 +32,8 @@ import { BusinessSettingsScreen } from './src/screens/BusinessSettingsScreen';
 import { ExportReportsScreen } from './src/screens/ExportReportsScreen';
 import { PreApkChecklistScreen } from './src/screens/PreApkChecklistScreen';
 import { MoreScreen } from './src/screens/MoreScreen';
+import { HelpScreen } from './src/screens/HelpScreen';
+import { OfflineStatusScreen } from './src/screens/OfflineStatusScreen';
 import { colors } from './src/theme/colors';
 
 function LoadingScreen() {
@@ -123,6 +125,10 @@ function Root() {
       return <PreApkChecklistScreen />;
     case 'more':
       return <MoreScreen />;
+    case 'help':
+      return <HelpScreen />;
+    case 'offlineStatus':
+      return <OfflineStatusScreen />;
     case 'dashboard':
     default:
       return <DashboardScreen />;

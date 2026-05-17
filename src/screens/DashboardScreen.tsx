@@ -93,7 +93,7 @@ export function DashboardScreen() {
           </View>
 
           <Text style={styles.business}>{businessSettings?.businessName || 'Sistema de cobranza'}</Text>
-          <Text style={styles.dateText}>Resumen de hoy ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· {today}</Text>
+          <Text style={styles.dateText}>Resumen de hoy ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· {today}</Text>
         </Card>
 
         <View style={styles.grid}>
@@ -112,23 +112,23 @@ export function DashboardScreen() {
         </View>
 
         <Card style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>Accesos rÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡pidos</Text>
+          <Text style={styles.sectionTitle}>Accesos rÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡pidos</Text>
 
           <View style={styles.quickGrid}>
-            <QuickAction icon="ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢Ãƒâ€šÃ‚Â°" label="Registrar pago" onPress={() => navigate('registerPayment')} />
-            <QuickAction icon="ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸ÃƒÂ¢Ã¢â€šÂ¬Ã‹Å“Ãƒâ€šÃ‚Â¥" label="Clientes" onPress={() => navigate('clients')} />
-            <QuickAction icon="ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸Ãƒâ€šÃ‚Â§Ãƒâ€šÃ‚Â¾" label="Caja diaria" onPress={() => navigate('dailyCash')} />
-            <QuickAction icon="ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂºÃƒâ€šÃ‚Âµ" label="Visitas" onPress={() => navigate('visits')} />
-            <QuickAction icon="ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂºÃƒâ€šÃ‚Â£ÃƒÆ’Ã‚Â¯Ãƒâ€šÃ‚Â¸Ãƒâ€šÃ‚Â" label="Rutas" onPress={() => navigate('routes')} />
-            <QuickAction icon="ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢Ãƒâ€šÃ‚Â³" label="CrÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â©ditos" onPress={() => navigate('credits')} />
+            <QuickAction icon="ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â°" label="Registrar pago" onPress={() => navigate('registerPayment')} />
+            <QuickAction icon="ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¹Ã…â€œÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¥" label="Clientes" onPress={() => navigate('clients')} />
+            <QuickAction icon="ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¾" label="Caja diaria" onPress={() => navigate('dailyCash')} />
+            <QuickAction icon="ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂºÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Âµ" label="Visitas" onPress={() => navigate('visits')} />
+            <QuickAction icon="ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂºÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â£ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¯ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â" label="Rutas" onPress={() => navigate('routes')} />
+            <QuickAction icon="ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³" label="CrÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©ditos" onPress={() => navigate('credits')} />
 
             {isAdmin ? (
               <>
-                <QuickAction icon="ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œÃƒâ€¦Ã‚Â " label="Reportes" onPress={() => navigate('reports')} />
-                <QuickAction icon="ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã‚Â¡ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã‚Â¯Ãƒâ€šÃ‚Â¸Ãƒâ€šÃ‚Â" label="MÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡s" onPress={() => navigate('more')} />
+                <QuickAction icon="ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â " label="Reportes" onPress={() => navigate('reports')} />
+                <QuickAction icon="ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¯ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â" label="MÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡s" onPress={() => navigate('more')} />
               </>
             ) : (
-              <QuickAction icon="ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã‚Â¡ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã‚Â¯Ãƒâ€šÃ‚Â¸Ãƒâ€šÃ‚Â" label="MÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡s" onPress={() => navigate('more')} />
+              <QuickAction icon="ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¯ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â" label="MÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡s" onPress={() => navigate('more')} />
             )}
           </View>
         </Card>
@@ -158,7 +158,7 @@ export function DashboardScreen() {
             </Pressable>
           </View>
 
-          <InfoRow label="CrÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â©ditos visibles" value={String(visibleCredits)} />
+          <InfoRow label="CrÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©ditos visibles" value={String(visibleCredits)} />
           <InfoRow label="Pagos activos hoy" value={String(todayPayments.length)} />
           <InfoRow label="Gastos hoy" value={String(todayExpenses.length)} />
           <InfoRow label="Cierres de caja hoy" value={String(todayClosings.length)} />
@@ -166,7 +166,7 @@ export function DashboardScreen() {
           {todayClosings.length > 0 ? (
             <Text style={styles.okText}>Ya existe al menos un cierre de caja para hoy.</Text>
           ) : (
-            <Text style={styles.warningText}>TodavÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â­a no hay cierre de caja registrado para hoy.</Text>
+            <Text style={styles.warningText}>TodavÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­a no hay cierre de caja registrado para hoy.</Text>
           )}
         </Card>
 
@@ -174,14 +174,14 @@ export function DashboardScreen() {
           <Card style={styles.adminCard}>
             <Text style={styles.sectionTitle}>Panel administrador</Text>
             <Text style={styles.adminText}>
-              Puedes gestionar usuarios, reportes, auditorÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â­a, configuraciÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â³n del negocio y exportaciones desde MÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡s opciones.
+              Puedes gestionar usuarios, reportes, auditorÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­a, configuraciÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³n del negocio y exportaciones desde MÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡s opciones.
             </Text>
           </Card>
         ) : (
           <Card style={styles.adminCard}>
             <Text style={styles.sectionTitle}>Panel cobrador</Text>
             <Text style={styles.adminText}>
-              Solo ves clientes, crÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â©ditos, pagos, rutas y visitas asignadas a tu usuario.
+              Solo ves clientes, crÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©ditos, pagos, rutas y visitas asignadas a tu usuario.
             </Text>
           </Card>
         )}

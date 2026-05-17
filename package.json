@@ -10,6 +10,8 @@
     "apk": "eas build -p android --profile preview"
   },
   "dependencies": {
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "@react-native-community/netinfo": "11.4.1",
     "expo": "^54.0.0",
     "expo-file-system": "~19.0.22",
     "expo-print": "~15.0.8",

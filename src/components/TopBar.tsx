@@ -12,7 +12,7 @@ type Props = {
 };
 
 export function TopBar({ title, showBack, rightText, onRightPress, onBack }: Props) {
-  const { navigate } = useApp();
+  const { navigate, isOnline, lastSyncAt } = useApp();
   const topPadding = Platform.OS === 'android' ? StatusBar.currentHeight ?? 0 : 0;
 
   const handleLeftPress = () => {
@@ -33,7 +33,7 @@ export function TopBar({ title, showBack, rightText, onRightPress, onBack }: Pro
     <View style={[styles.bar, { paddingTop: topPadding + 10 }]}>
       <View style={styles.row}>
         <Pressable style={styles.iconButton} onPress={handleLeftPress}>
-          <Text style={styles.icon}>{showBack ? '‹' : '☰'}</Text>
+          <Text style={styles.icon}>{showBack ? '<' : '☰'}</Text>
         </Pressable>
 
         <Text style={styles.title} numberOfLines={1}>
@@ -48,6 +48,15 @@ export function TopBar({ title, showBack, rightText, onRightPress, onBack }: Pro
           <View style={styles.iconButton} />
         )}
       </View>
+
+      {!isOnline ? (
+        <View style={styles.offlineBox}>
+          <Text style={styles.offlineText}>
+            Sin conexion · usando datos guardados
+            {lastSyncAt ? ` · ultima sync ${lastSyncAt.slice(0, 16).replace('T', ' ')}` : ''}
+          </Text>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -71,8 +80,8 @@ const styles = StyleSheet.create({
   },
   icon: {
     color: '#FFFFFF',
-    fontSize: 30,
-    fontWeight: '700'
+    fontSize: 28,
+    fontWeight: '900'
   },
   title: {
     flex: 1,
@@ -90,5 +99,17 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '800',
     fontSize: 13
+  },
+  offlineBox: {
+    backgroundColor: 'rgba(255,255,255,0.16)',
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    marginTop: 8
+  },
+  offlineText: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+    fontSize: 11
   }
 });

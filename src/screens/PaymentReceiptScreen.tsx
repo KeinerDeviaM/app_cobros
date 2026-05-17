@@ -26,9 +26,21 @@ function getReceiptNumber(receiptId: string, createdAt: string) {
   return raw.replace(/[^a-zA-Z0-9]/g, '').slice(-8).toUpperCase();
 }
 
+function isHexColor(value?: string) {
+  return typeof value === 'string' && /^#[0-9A-Fa-f]{6}$/.test(value);
+}
+
 export function PaymentReceiptScreen() {
   const { lastReceipt, businessSettings, navigate, clearReceipt } = useApp();
   const [loadingPdf, setLoadingPdf] = useState(false);
+
+  const primaryColor = isHexColor(businessSettings.primaryColor)
+    ? businessSettings.primaryColor
+    : '#2563EB';
+
+  const secondaryColor = isHexColor(businessSettings.secondaryColor)
+    ? businessSettings.secondaryColor
+    : '#EFF6FF';
 
   const receiptNumber = useMemo(() => {
     if (!lastReceipt) return '';
@@ -48,20 +60,28 @@ export function PaymentReceiptScreen() {
     );
   }
 
+  const businessName = businessSettings.businessName || businessSettings.appName || 'App Cobros';
+  const appName = businessSettings.appName || 'App Cobros';
+  const receiptMessage = businessSettings.receiptMessage || 'Gracias por su pago. Conserve este comprobante.';
+  const receiptLegalText = businessSettings.receiptLegalText || 'Este comprobante es valido como soporte del pago registrado.';
+  const receiptFooter = businessSettings.receiptFooter || `Generado por ${appName}`;
+
   const receiptText = [
-    `${businessSettings.businessName || businessSettings.appName || 'App Cobros'}`,
+    businessName,
     `Recibo No. ${receiptNumber}`,
     '',
     `Cliente: ${lastReceipt.clienteNombre}`,
     `Fecha: ${lastReceipt.fechaPago}`,
-    `Método: ${lastReceipt.metodoPago}`,
+    `Metodo: ${lastReceipt.metodoPago}`,
     `Valor pagado: ${formatMoney(lastReceipt.valorPagado)}`,
     `Saldo anterior: ${formatMoney(lastReceipt.saldoAnterior)}`,
     `Nuevo saldo: ${formatMoney(lastReceipt.saldoNuevo)}`,
     `Cobrador: ${lastReceipt.cobradorEmail}`,
-    lastReceipt.observacion ? `Observación: ${lastReceipt.observacion}` : '',
+    lastReceipt.observacion ? `Observacion: ${lastReceipt.observacion}` : '',
     '',
-    businessSettings.receiptMessage || 'Gracias por su pago. Conserve este comprobante.'
+    receiptMessage,
+    receiptLegalText,
+    receiptFooter
   ].filter(Boolean).join('\n');
 
   const html = `
@@ -69,6 +89,7 @@ export function PaymentReceiptScreen() {
     <html>
       <head>
         <meta charset="utf-8" />
+
         <style>
           body {
             font-family: Arial, sans-serif;
@@ -79,37 +100,41 @@ export function PaymentReceiptScreen() {
           .receipt {
             border: 1px solid #D1D5DB;
             border-radius: 18px;
-            padding: 24px;
+            overflow: hidden;
           }
 
           .header {
             text-align: center;
-            border-bottom: 1px solid #E5E7EB;
-            padding-bottom: 18px;
-            margin-bottom: 18px;
+            background: ${primaryColor};
+            color: #FFFFFF;
+            padding: 24px;
           }
 
           .business {
             font-size: 26px;
             font-weight: 800;
-            color: #2563EB;
             margin-bottom: 6px;
           }
 
           .muted {
-            color: #6B7280;
+            color: #FFFFFF;
+            opacity: 0.9;
             font-size: 13px;
             line-height: 19px;
           }
 
           .receipt-number {
-            background: #EFF6FF;
-            color: #2563EB;
+            background: ${secondaryColor};
+            color: ${primaryColor};
             padding: 10px 14px;
             border-radius: 12px;
             font-weight: 800;
             display: inline-block;
-            margin-top: 12px;
+            margin-top: 14px;
+          }
+
+          .content {
+            padding: 24px;
           }
 
           .section-title {
@@ -138,18 +163,18 @@ export function PaymentReceiptScreen() {
           }
 
           .total {
-            background: #EFF6FF;
+            background: ${secondaryColor};
             border-radius: 14px;
             padding: 16px;
             margin-top: 16px;
           }
 
           .total .label {
-            color: #2563EB;
+            color: ${primaryColor};
           }
 
           .total .value {
-            color: #2563EB;
+            color: ${primaryColor};
             font-size: 22px;
           }
 
@@ -160,13 +185,23 @@ export function PaymentReceiptScreen() {
             margin-top: 18px;
             color: #374151;
             line-height: 21px;
+            text-align: center;
+          }
+
+          .legal {
+            color: #6B7280;
+            font-size: 12px;
+            line-height: 18px;
+            text-align: center;
+            margin-top: 14px;
           }
 
           .footer {
             text-align: center;
-            margin-top: 22px;
-            color: #6B7280;
+            margin-top: 18px;
+            color: ${primaryColor};
             font-size: 12px;
+            font-weight: 800;
           }
         </style>
       </head>
@@ -174,65 +209,71 @@ export function PaymentReceiptScreen() {
       <body>
         <div class="receipt">
           <div class="header">
-            <div class="business">${escapeHtml(businessSettings.businessName || businessSettings.appName || 'App Cobros')}</div>
-            <div class="muted">${escapeHtml(businessSettings.phone || 'Teléfono no registrado')}</div>
-            <div class="muted">${escapeHtml(businessSettings.address || 'Dirección no registrada')}</div>
+            <div class="business">${escapeHtml(businessName)}</div>
+            <div class="muted">${escapeHtml(businessSettings.phone || 'Telefono no registrado')}</div>
+            <div class="muted">${escapeHtml(businessSettings.address || 'Direccion no registrada')}</div>
             <div class="receipt-number">RECIBO No. ${escapeHtml(receiptNumber)}</div>
           </div>
 
-          <div class="section-title">Datos del pago</div>
+          <div class="content">
+            <div class="section-title">Datos del pago</div>
 
-          <div class="row">
-            <div class="label">Cliente</div>
-            <div class="value">${escapeHtml(lastReceipt.clienteNombre)}</div>
-          </div>
-
-          <div class="row">
-            <div class="label">Fecha</div>
-            <div class="value">${escapeHtml(lastReceipt.fechaPago)}</div>
-          </div>
-
-          <div class="row">
-            <div class="label">Método</div>
-            <div class="value">${escapeHtml(lastReceipt.metodoPago)}</div>
-          </div>
-
-          <div class="row">
-            <div class="label">Cobrador</div>
-            <div class="value">${escapeHtml(lastReceipt.cobradorEmail)}</div>
-          </div>
-
-          <div class="total">
             <div class="row">
-              <div class="label">Valor pagado</div>
-              <div class="value">${escapeHtml(formatMoney(lastReceipt.valorPagado))}</div>
+              <div class="label">Cliente</div>
+              <div class="value">${escapeHtml(lastReceipt.clienteNombre)}</div>
             </div>
-          </div>
 
-          <div class="section-title">Estado del crédito</div>
+            <div class="row">
+              <div class="label">Fecha</div>
+              <div class="value">${escapeHtml(lastReceipt.fechaPago)}</div>
+            </div>
 
-          <div class="row">
-            <div class="label">Saldo anterior</div>
-            <div class="value">${escapeHtml(formatMoney(lastReceipt.saldoAnterior))}</div>
-          </div>
+            <div class="row">
+              <div class="label">Metodo</div>
+              <div class="value">${escapeHtml(lastReceipt.metodoPago)}</div>
+            </div>
 
-          <div class="row">
-            <div class="label">Nuevo saldo</div>
-            <div class="value">${escapeHtml(formatMoney(lastReceipt.saldoNuevo))}</div>
-          </div>
+            <div class="row">
+              <div class="label">Cobrador</div>
+              <div class="value">${escapeHtml(lastReceipt.cobradorEmail)}</div>
+            </div>
 
-          ${
-            lastReceipt.observacion
-              ? `<div class="message"><strong>Observación:</strong><br />${escapeHtml(lastReceipt.observacion)}</div>`
-              : ''
-          }
+            <div class="total">
+              <div class="row">
+                <div class="label">Valor pagado</div>
+                <div class="value">${escapeHtml(formatMoney(lastReceipt.valorPagado))}</div>
+              </div>
+            </div>
 
-          <div class="message">
-            ${escapeHtml(businessSettings.receiptMessage || 'Gracias por su pago. Conserve este comprobante.')}
-          </div>
+            <div class="section-title">Estado del credito</div>
 
-          <div class="footer">
-            Generado por ${escapeHtml(businessSettings.appName || 'App Cobros')}
+            <div class="row">
+              <div class="label">Saldo anterior</div>
+              <div class="value">${escapeHtml(formatMoney(lastReceipt.saldoAnterior))}</div>
+            </div>
+
+            <div class="row">
+              <div class="label">Nuevo saldo</div>
+              <div class="value">${escapeHtml(formatMoney(lastReceipt.saldoNuevo))}</div>
+            </div>
+
+            ${
+              lastReceipt.observacion
+                ? `<div class="message"><strong>Observacion:</strong><br />${escapeHtml(lastReceipt.observacion)}</div>`
+                : ''
+            }
+
+            <div class="message">
+              ${escapeHtml(receiptMessage)}
+            </div>
+
+            <div class="legal">
+              ${escapeHtml(receiptLegalText)}
+            </div>
+
+            <div class="footer">
+              ${escapeHtml(receiptFooter)}
+            </div>
           </div>
         </div>
       </body>
@@ -292,68 +333,68 @@ export function PaymentReceiptScreen() {
 
       <Screen>
         <Card style={styles.receiptCard}>
-          <View style={styles.header}>
-            <Text style={styles.businessName}>
-              {businessSettings.businessName || businessSettings.appName || 'App Cobros'}
-            </Text>
-            <Text style={styles.businessInfo}>
-              {businessSettings.phone || 'Teléfono no registrado'}
-            </Text>
-            <Text style={styles.businessInfo}>
-              {businessSettings.address || 'Dirección no registrada'}
-            </Text>
+          <View style={[styles.header, { backgroundColor: primaryColor }]}>
+            <Text style={styles.businessName}>{businessName}</Text>
+            <Text style={styles.businessInfo}>{businessSettings.phone || 'Telefono no registrado'}</Text>
+            <Text style={styles.businessInfo}>{businessSettings.address || 'Direccion no registrada'}</Text>
 
-            <View style={styles.receiptNumberBox}>
-              <Text style={styles.receiptNumber}>RECIBO No. {receiptNumber}</Text>
+            <View style={[styles.receiptNumberBox, { backgroundColor: secondaryColor }]}>
+              <Text style={[styles.receiptNumber, { color: primaryColor }]}>RECIBO No. {receiptNumber}</Text>
             </View>
           </View>
 
-          <View style={styles.row}>
-            <Text style={styles.label}>Cliente</Text>
-            <Text style={styles.value}>{lastReceipt.clienteNombre}</Text>
-          </View>
-
-          <View style={styles.row}>
-            <Text style={styles.label}>Fecha</Text>
-            <Text style={styles.value}>{lastReceipt.fechaPago}</Text>
-          </View>
-
-          <View style={styles.row}>
-            <Text style={styles.label}>Método</Text>
-            <Text style={styles.value}>{lastReceipt.metodoPago}</Text>
-          </View>
-
-          <View style={styles.row}>
-            <Text style={styles.label}>Cobrador</Text>
-            <Text style={styles.value}>{lastReceipt.cobradorEmail}</Text>
-          </View>
-
-          <View style={styles.totalBox}>
-            <Text style={styles.totalLabel}>Valor pagado</Text>
-            <Text style={styles.totalValue}>{formatMoney(lastReceipt.valorPagado)}</Text>
-          </View>
-
-          <View style={styles.row}>
-            <Text style={styles.label}>Saldo anterior</Text>
-            <Text style={styles.value}>{formatMoney(lastReceipt.saldoAnterior)}</Text>
-          </View>
-
-          <View style={styles.row}>
-            <Text style={styles.label}>Nuevo saldo</Text>
-            <Text style={styles.value}>{formatMoney(lastReceipt.saldoNuevo)}</Text>
-          </View>
-
-          {lastReceipt.observacion ? (
-            <View style={styles.noteBox}>
-              <Text style={styles.noteTitle}>Observación</Text>
-              <Text style={styles.noteText}>{lastReceipt.observacion}</Text>
+          <View style={styles.body}>
+            <View style={styles.row}>
+              <Text style={styles.label}>Cliente</Text>
+              <Text style={styles.value}>{lastReceipt.clienteNombre}</Text>
             </View>
-          ) : null}
 
-          <View style={styles.messageBox}>
-            <Text style={styles.messageText}>
-              {businessSettings.receiptMessage || 'Gracias por su pago. Conserve este comprobante.'}
-            </Text>
+            <View style={styles.row}>
+              <Text style={styles.label}>Fecha</Text>
+              <Text style={styles.value}>{lastReceipt.fechaPago}</Text>
+            </View>
+
+            <View style={styles.row}>
+              <Text style={styles.label}>Metodo</Text>
+              <Text style={styles.value}>{lastReceipt.metodoPago}</Text>
+            </View>
+
+            <View style={styles.row}>
+              <Text style={styles.label}>Cobrador</Text>
+              <Text style={styles.value}>{lastReceipt.cobradorEmail}</Text>
+            </View>
+
+            <View style={[styles.totalBox, { backgroundColor: secondaryColor }]}>
+              <Text style={[styles.totalLabel, { color: primaryColor }]}>Valor pagado</Text>
+              <Text style={[styles.totalValue, { color: primaryColor }]}>{formatMoney(lastReceipt.valorPagado)}</Text>
+            </View>
+
+            <View style={styles.row}>
+              <Text style={styles.label}>Saldo anterior</Text>
+              <Text style={styles.value}>{formatMoney(lastReceipt.saldoAnterior)}</Text>
+            </View>
+
+            <View style={styles.row}>
+              <Text style={styles.label}>Nuevo saldo</Text>
+              <Text style={styles.value}>{formatMoney(lastReceipt.saldoNuevo)}</Text>
+            </View>
+
+            {lastReceipt.observacion ? (
+              <View style={styles.noteBox}>
+                <Text style={styles.noteTitle}>Observacion</Text>
+                <Text style={styles.noteText}>{lastReceipt.observacion}</Text>
+              </View>
+            ) : null}
+
+            <View style={[styles.messageBox, { backgroundColor: secondaryColor }]}>
+              <Text style={styles.messageText}>{receiptMessage}</Text>
+            </View>
+
+            <View style={styles.legalBox}>
+              <Text style={styles.legalText}>{receiptLegalText}</Text>
+            </View>
+
+            <Text style={[styles.footerText, { color: primaryColor }]}>{receiptFooter}</Text>
           </View>
         </Card>
 
@@ -373,36 +414,37 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background
   },
   receiptCard: {
-    marginBottom: 14
+    marginBottom: 14,
+    padding: 0,
+    overflow: 'hidden'
   },
   header: {
     alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    paddingBottom: 16,
-    marginBottom: 12
+    padding: 18
+  },
+  body: {
+    padding: 16
   },
   businessName: {
-    color: colors.primary,
+    color: '#FFFFFF',
     fontSize: 22,
     fontWeight: '900',
     textAlign: 'center'
   },
   businessInfo: {
-    color: colors.muted,
+    color: '#FFFFFF',
+    opacity: 0.9,
     fontWeight: '700',
     marginTop: 4,
     textAlign: 'center'
   },
   receiptNumberBox: {
-    backgroundColor: colors.primarySoft,
     borderRadius: 999,
     paddingHorizontal: 14,
     paddingVertical: 8,
     marginTop: 12
   },
   receiptNumber: {
-    color: colors.primary,
     fontWeight: '900'
   },
   row: {
@@ -425,18 +467,15 @@ const styles = StyleSheet.create({
     textAlign: 'right'
   },
   totalBox: {
-    backgroundColor: colors.primarySoft,
     borderRadius: 16,
     padding: 16,
     marginVertical: 14
   },
   totalLabel: {
-    color: colors.primary,
     fontWeight: '900',
     textAlign: 'center'
   },
   totalValue: {
-    color: colors.primary,
     fontSize: 28,
     fontWeight: '900',
     textAlign: 'center',
@@ -459,7 +498,6 @@ const styles = StyleSheet.create({
     lineHeight: 20
   },
   messageBox: {
-    backgroundColor: '#FFF8E1',
     borderRadius: 14,
     padding: 12,
     marginTop: 14
@@ -469,6 +507,25 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     lineHeight: 20,
     textAlign: 'center'
+  },
+  legalBox: {
+    backgroundColor: colors.background,
+    borderRadius: 14,
+    padding: 12,
+    marginTop: 12
+  },
+  legalText: {
+    color: colors.muted,
+    fontWeight: '700',
+    lineHeight: 18,
+    textAlign: 'center',
+    fontSize: 12
+  },
+  footerText: {
+    fontWeight: '900',
+    textAlign: 'center',
+    marginTop: 12,
+    fontSize: 12
   },
   button: {
     marginBottom: 10

@@ -1,4 +1,6 @@
 import React, { createContext, ReactNode, useContext, useEffect, useMemo, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import NetInfo from '@react-native-community/netinfo';
 import { Alert } from 'react-native';
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import {
@@ -41,6 +43,24 @@ import {
 import { nowIso, todayKey } from '../utils/date';
 
 const ADMIN_EMAIL = 'admin@cobroapp.com';
+const OFFLINE_CACHE_KEY = '@cobroapp/offline-cache-v1';
+
+type OfflineCache = {
+  metadata: {
+    lastSyncAt: string;
+    userEmail: string;
+  };
+  clients: Client[];
+  credits: Credit[];
+  payments: Payment[];
+  expenses: Expense[];
+  users: UserProfile[];
+  routes: Route[];
+  visits: Visit[];
+  cashClosings: CashClosing[];
+  auditLogs: AuditLog[];
+  businessSettings: BusinessSettings;
+};
 
 type NewClientInput = {
   nombre: string;
@@ -123,7 +143,11 @@ type NewBusinessSettingsInput = {
   phone: string;
   address: string;
   receiptMessage: string;
+  receiptLegalText: string;
+  receiptFooter: string;
   currency: string;
+  primaryColor: string;
+  secondaryColor: string;
 };
 
 type AppContextValue = {
@@ -148,6 +172,9 @@ type AppContextValue = {
   businessSettings: BusinessSettings;
   lastReceipt: PaymentReceipt | null;
   loadingClients: boolean;
+  isOnline: boolean;
+  offlineReady: boolean;
+  lastSyncAt: string;
   isAdmin: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -207,7 +234,11 @@ const defaultBusinessSettings: BusinessSettings = {
   phone: '',
   address: '',
   receiptMessage: 'Gracias por su pago. Conserve este comprobante.',
-  currency: 'COP'
+  receiptLegalText: 'Este comprobante es vÃƒÆ’Ã‚Â¡lido como soporte del pago registrado.',
+  receiptFooter: 'Generado por App Cobros',
+  currency: 'COP',
+  primaryColor: '#2563EB',
+  secondaryColor: '#EFF6FF'
 };
 
 const AppContext = createContext<AppContextValue | undefined>(undefined);
@@ -283,8 +314,127 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [businessSettings, setBusinessSettings] = useState<BusinessSettings>(defaultBusinessSettings);
 
   const [loadingClients, setLoadingClients] = useState(false);
+  const [isOnline, setIsOnline] = useState(true);
+  const [offlineReady, setOfflineReady] = useState(false);
+  const [lastSyncAt, setLastSyncAt] = useState('');
 
   const isAdmin = session.role === 'admin';
+
+  useEffect(() => {
+    const updateConnection = (state: { isConnected: boolean | null; isInternetReachable: boolean | null }) => {
+      const connected = Boolean(state.isConnected) && state.isInternetReachable !== false;
+      setIsOnline(connected);
+    };
+
+    const unsubscribe = NetInfo.addEventListener(updateConnection);
+
+    NetInfo.fetch()
+      .then(updateConnection)
+      .catch(() => setIsOnline(false));
+
+    return unsubscribe;
+  }, []);
+
+  useEffect(() => {
+    const loadOfflineCache = async () => {
+      try {
+        const rawCache = await AsyncStorage.getItem(OFFLINE_CACHE_KEY);
+
+        if (!rawCache) {
+          setOfflineReady(true);
+          return;
+        }
+
+        const cache = JSON.parse(rawCache) as Partial<OfflineCache>;
+
+        if (Array.isArray(cache.clients)) setClients(cache.clients);
+        if (Array.isArray(cache.credits)) setCredits(cache.credits);
+        if (Array.isArray(cache.payments)) setPayments(cache.payments);
+        if (Array.isArray(cache.expenses)) setExpenses(cache.expenses);
+        if (Array.isArray(cache.users)) setUsers(cache.users);
+        if (Array.isArray(cache.routes)) setRoutes(cache.routes);
+        if (Array.isArray(cache.visits)) setVisits(cache.visits);
+        if (Array.isArray(cache.cashClosings)) setCashClosings(cache.cashClosings);
+        if (Array.isArray(cache.auditLogs)) setAuditLogs(cache.auditLogs);
+
+        if (cache.businessSettings) {
+          setBusinessSettings({
+            ...defaultBusinessSettings,
+            ...cache.businessSettings
+          });
+        }
+
+        setLastSyncAt(cache.metadata?.lastSyncAt ?? '');
+      } catch (error) {
+        console.error('Error cargando cache offline:', error);
+      } finally {
+        setOfflineReady(true);
+      }
+    };
+
+    loadOfflineCache();
+  }, []);
+
+  useEffect(() => {
+    if (!session.loggedIn || !isOnline || !offlineReady) return;
+
+    const hasAnyData =
+      clients.length > 0 ||
+      credits.length > 0 ||
+      payments.length > 0 ||
+      expenses.length > 0 ||
+      routes.length > 0 ||
+      visits.length > 0 ||
+      cashClosings.length > 0 ||
+      auditLogs.length > 0;
+
+    if (!hasAnyData) return;
+
+    const timeout = setTimeout(async () => {
+      try {
+        const syncDate = nowIso();
+
+        const cache: OfflineCache = {
+          metadata: {
+            lastSyncAt: syncDate,
+            userEmail: session.email
+          },
+          clients,
+          credits,
+          payments,
+          expenses,
+          users,
+          routes,
+          visits,
+          cashClosings,
+          auditLogs,
+          businessSettings
+        };
+
+        await AsyncStorage.setItem(OFFLINE_CACHE_KEY, JSON.stringify(cache));
+        setLastSyncAt(syncDate);
+      } catch (error) {
+        console.error('Error guardando cache offline:', error);
+      }
+    }, 900);
+
+    return () => clearTimeout(timeout);
+  }, [
+    auditLogs,
+    businessSettings,
+    cashClosings,
+    clients,
+    credits,
+    expenses,
+    isOnline,
+    offlineReady,
+    payments,
+    routes,
+    session.email,
+    session.loggedIn,
+    users,
+    visits
+  ]);
 
   const selectedClient = useMemo(
     () => clients.find((client) => client.id === selectedClientId),
@@ -407,7 +557,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
           phone: data.phone || '',
           address: data.address || '',
           receiptMessage: data.receiptMessage || defaultBusinessSettings.receiptMessage,
+          receiptLegalText: data.receiptLegalText || defaultBusinessSettings.receiptLegalText,
+          receiptFooter: data.receiptFooter || defaultBusinessSettings.receiptFooter,
           currency: data.currency || defaultBusinessSettings.currency,
+          primaryColor: data.primaryColor || defaultBusinessSettings.primaryColor,
+          secondaryColor: data.secondaryColor || defaultBusinessSettings.secondaryColor,
           updatedAt: data.updatedAt,
           updatedBy: data.updatedBy
         });
@@ -1484,7 +1638,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const localVisit = visits.find((visit) => visit.id === visitId);
 
     if (!localVisit) {
-      Alert.alert('Promesa no encontrada', 'No se encontrÃ³ la promesa seleccionada.');
+      Alert.alert('Promesa no encontrada', 'No se encontrÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³ la promesa seleccionada.');
       return;
     }
 
@@ -1613,7 +1767,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      await updateDoc(doc(db, 'usuarios', userId), { role });
+      const targetUser = users.find((user) => user.uid === userId || user.id === userId);
+
+      await updateDoc(doc(db, 'usuarios', userId), {
+        role,
+        updatedAt: nowIso(),
+        updatedBy: session.email
+      });
+
+      await addDoc(collection(db, 'auditoria'), {
+        tipo: 'CAMBIO_ROL_USUARIO',
+        descripcion: `Rol de usuario actualizado por ${session.email}`,
+        usuarioEmail: session.email,
+        valor: 0,
+        motivo: `Usuario: ${targetUser?.email || userId} | Nuevo rol: ${role}`,
+        createdAt: nowIso()
+      });
+
       Alert.alert('Rol actualizado', `El usuario ahora es ${role}.`);
     } catch (error) {
       console.error('Error cambiando rol:', error);
@@ -1630,7 +1800,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      await updateDoc(doc(db, 'usuarios', userId), { activo });
+      const targetUser = users.find((user) => user.uid === userId || user.id === userId);
+
+      await updateDoc(doc(db, 'usuarios', userId), {
+        activo,
+        updatedAt: nowIso(),
+        updatedBy: session.email
+      });
+
+      await addDoc(collection(db, 'auditoria'), {
+        tipo: activo ? 'ACTIVAR_USUARIO' : 'DESACTIVAR_USUARIO',
+        descripcion: activo
+          ? `Usuario activado por ${session.email}`
+          : `Usuario desactivado por ${session.email}`,
+        usuarioEmail: session.email,
+        valor: 0,
+        motivo: `Usuario: ${targetUser?.email || userId}`,
+        createdAt: nowIso()
+      });
+
       Alert.alert('Usuario actualizado', activo ? 'Usuario activado.' : 'Usuario desactivado.');
     } catch (error) {
       console.error('Error actualizando usuario:', error);
@@ -1702,6 +1890,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     businessSettings,
     lastReceipt,
     loadingClients,
+    isOnline,
+    offlineReady,
+    lastSyncAt,
     isAdmin,
     login,
     logout,
