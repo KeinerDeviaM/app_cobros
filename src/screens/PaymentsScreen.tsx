@@ -12,7 +12,7 @@ import { useApp } from '../state/AppContext';
 import { colors } from '../theme/colors';
 import { formatMoney } from '../utils/money';
 
-type PaymentFilter = 'activos' | 'anulados' | 'todos';
+type PaymentFilter = 'activos' | 'editados' | 'anulados' | 'todos';
 
 export function PaymentsScreen() {
   const {
@@ -20,7 +20,8 @@ export function PaymentsScreen() {
     getClientName,
     navigate,
     cancelPayment,
-    isAdmin
+    canManagePayments,
+    selectPayment
   } = useApp();
 
   const [search, setSearch] = useState('');
@@ -34,8 +35,10 @@ export function PaymentsScreen() {
         filter === 'todos'
           ? true
           : filter === 'activos'
-            ? payment.estado !== 'anulado'
-            : payment.estado === 'anulado';
+            ? payment.estado === 'activo'
+            : filter === 'editados'
+              ? payment.estado === 'editado'
+              : payment.estado === 'anulado';
 
       const matchesSearch = query
         ? [
@@ -66,13 +69,13 @@ export function PaymentsScreen() {
   const confirmCancel = (paymentId: string) => {
     Alert.alert(
       'Anular pago',
-      'Esta acción no borra el pago: lo marcará como anulado, devolverá el saldo al crédito y guardará auditoría. ¿Deseas continuar?',
+      'Esta accion no borra el pago: lo marcara como anulado, devolvera el saldo al credito y guardara auditoria. Deseas continuar?',
       [
         { text: 'Cancelar', style: 'cancel' },
         {
           text: 'Anular',
           style: 'destructive',
-          onPress: () => cancelPayment(paymentId, 'Anulación manual desde pantalla de pagos')
+          onPress: () => cancelPayment(paymentId, 'Anulacion manual desde pantalla de pagos')
         }
       ]
     );
@@ -81,6 +84,7 @@ export function PaymentsScreen() {
   return (
     <View style={styles.root}>
       <TopBar title="Pagos" rightText="+" onRightPress={() => navigate('registerPayment')} />
+
       <Screen>
         <View style={styles.summaryGrid}>
           <Card style={styles.summaryCard}>
@@ -99,11 +103,12 @@ export function PaymentsScreen() {
           icon="🔎"
           value={search}
           onChangeText={setSearch}
-          placeholder="Buscar por cliente, cobrador, método o fecha"
+          placeholder="Buscar por cliente, cobrador, metodo o fecha"
         />
 
         <View style={styles.filters}>
           <FilterChip label="Activos" value="activos" current={filter} onPress={setFilter} />
+          <FilterChip label="Editados" value="editados" current={filter} onPress={setFilter} />
           <FilterChip label="Anulados" value="anulados" current={filter} onPress={setFilter} />
           <FilterChip label="Todos" value="todos" current={filter} onPress={setFilter} />
         </View>
@@ -113,6 +118,7 @@ export function PaymentsScreen() {
         ) : (
           filtered.map((payment) => {
             const isCanceled = payment.estado === 'anulado';
+            const isEdited = payment.estado === 'editado';
 
             return (
               <Card key={payment.id} style={[styles.paymentCard, isCanceled ? styles.canceledCard : null]}>
@@ -120,14 +126,15 @@ export function PaymentsScreen() {
                   <View style={styles.paymentInfo}>
                     <Text style={styles.clientName}>{getClientName(payment.clienteId)}</Text>
                     <Text style={styles.meta}>Valor: {formatMoney(payment.valorPagado)}</Text>
-                    <Text style={styles.meta}>Método: {payment.metodoPago}</Text>
+                    <Text style={styles.meta}>Metodo: {payment.metodoPago}</Text>
                     <Text style={styles.meta}>Fecha: {payment.fechaPago}</Text>
+                    <Text style={styles.meta}>Hora registro: {payment.fechaHoraPago || payment.createdAt}</Text>
                     <Text style={styles.meta}>Cobrador: {payment.usuarioEmail}</Text>
                   </View>
 
                   <StatusBadge
-                    type={isCanceled ? 'danger' : 'success'}
-                    label={isCanceled ? 'Anulado' : 'Activo'}
+                    type={isCanceled ? 'danger' : isEdited ? 'warning' : 'success'}
+                    label={isCanceled ? 'Anulado' : isEdited ? 'Editado' : 'Activo'}
                   />
                 </View>
 
@@ -135,20 +142,28 @@ export function PaymentsScreen() {
                   <Text style={styles.note}>Nota: {payment.observacion}</Text>
                 ) : null}
 
+                {isEdited ? (
+                  <View style={styles.editBox}>
+                    <Text style={styles.editTitle}>Informacion de edicion</Text>
+                    <Text style={styles.cancelText}>Editado por: {payment.editadoPor || 'No registrado'}</Text>
+                    <Text style={styles.cancelText}>Fecha: {payment.editadoEn || 'No registrada'}</Text>
+                    <Text style={styles.cancelText}>Motivo: {payment.motivoEdicion || 'Sin motivo'}</Text>
+                    <Text style={styles.cancelText}>Valor original: {formatMoney(payment.valorOriginal || 0)}</Text>
+                  </View>
+                ) : null}
+
                 {isCanceled ? (
                   <View style={styles.cancelBox}>
-                    <Text style={styles.cancelTitle}>Información de anulación</Text>
+                    <Text style={styles.cancelTitle}>Informacion de anulacion</Text>
                     <Text style={styles.cancelText}>Anulado por: {payment.anuladoPor || 'No registrado'}</Text>
                     <Text style={styles.cancelText}>Fecha: {payment.anuladoEn || 'No registrada'}</Text>
                     <Text style={styles.cancelText}>Motivo: {payment.motivoAnulacion || 'Sin motivo'}</Text>
                   </View>
-                ) : isAdmin ? (
-                  <Button
-                    title="Anular pago"
-                    variant="danger"
-                    onPress={() => confirmCancel(payment.id)}
-                    style={styles.cancelButton}
-                  />
+                ) : canManagePayments ? (
+                  <View style={styles.buttonRow}>
+                    <Button title="Editar pago" variant="secondary" onPress={() => selectPayment(payment.id)} style={styles.actionButton} />
+                    <Button title="Anular pago" variant="danger" onPress={() => confirmCancel(payment.id)} style={styles.actionButton} />
+                  </View>
                 ) : null}
               </Card>
             );
@@ -157,6 +172,7 @@ export function PaymentsScreen() {
 
         <Button title="Registrar nuevo pago" onPress={() => navigate('registerPayment')} style={styles.newButton} />
       </Screen>
+
       <BottomNav />
     </View>
   );
@@ -275,8 +291,19 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     padding: 12
   },
+  editBox: {
+    marginTop: 12,
+    backgroundColor: '#FFF8E1',
+    borderRadius: 14,
+    padding: 12
+  },
   cancelTitle: {
     color: colors.danger,
+    fontWeight: '900',
+    marginBottom: 6
+  },
+  editTitle: {
+    color: colors.primary,
     fontWeight: '900',
     marginBottom: 6
   },
@@ -285,8 +312,13 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginTop: 3
   },
-  cancelButton: {
+  buttonRow: {
+    flexDirection: 'row',
+    gap: 10,
     marginTop: 12
+  },
+  actionButton: {
+    flex: 1
   },
   newButton: {
     marginTop: 10

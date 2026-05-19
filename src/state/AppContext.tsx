@@ -94,7 +94,19 @@ type NewCreditInput = {
   numeroCuotas: number;
   frecuencia: Frequency;
   fechaInicio: string;
-};
+  fechaFinal?: string;
+  porcentaje?: number;
+  tipoCobro?: Frequency;
+  nota?: string;
+  codeudorTiene?: boolean;
+  codeudorTipo?: 'cliente' | 'nuevo';
+  codeudorClienteId?: string;
+  codeudorNombreCompleto?: string;
+  codeudorSobrenombre?: string;
+  codeudorCpf?: string;
+  codeudorDireccion?: string;
+  codeudorTelefono?: string;
+  codeudorNota?: string;};
 
 type UpdateCreditInput = {
   valorPrestado: number;
@@ -111,6 +123,14 @@ type NewPaymentInput = {
   metodoPago: PaymentMethod;
   fechaPago: string;
   observacion: string;
+};
+
+type UpdatePaymentInput = {
+  valorPagado: number;
+  metodoPago: PaymentMethod;
+  fechaPago: string;
+  observacion: string;
+  motivo: string;
 };
 
 type NewExpenseInput = {
@@ -160,6 +180,8 @@ type AppContextValue = {
   selectedCredit: Credit | undefined;
   selectedExpenseId: string;
   selectedExpense: Expense | undefined;
+  selectedPaymentId: string;
+  selectedPayment: Payment | undefined;
   clients: Client[];
   credits: Credit[];
   payments: Payment[];
@@ -176,6 +198,8 @@ type AppContextValue = {
   offlineReady: boolean;
   lastSyncAt: string;
   isAdmin: boolean;
+  isSupervisor: boolean;
+  canManagePayments: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   navigate: (screen: ScreenName) => void;
@@ -183,6 +207,7 @@ type AppContextValue = {
   selectClient: (clientId: string) => void;
   selectCredit: (creditId: string) => void;
   selectExpense: (expenseId: string) => void;
+  selectPayment: (paymentId: string) => void;
   addClient: (input: NewClientInput) => Promise<void>;
   updateClient: (clientId: string, input: UpdateClientInput) => Promise<void>;
   addCredit: (input: NewCreditInput) => Promise<void>;
@@ -191,6 +216,7 @@ type AppContextValue = {
   cancelCredit: (creditId: string, motivo?: string) => Promise<void>;
   addPayment: (input: NewPaymentInput) => Promise<void>;
   cancelPayment: (paymentId: string, motivo?: string) => Promise<void>;
+  updatePayment: (paymentId: string, input: UpdatePaymentInput) => Promise<void>;
   addExpense: (input: NewExpenseInput) => Promise<void>;
   updateExpense: (expenseId: string, input: UpdateExpenseInput) => Promise<void>;
   cancelExpense: (expenseId: string, motivo?: string) => Promise<void>;
@@ -234,7 +260,7 @@ const defaultBusinessSettings: BusinessSettings = {
   phone: '',
   address: '',
   receiptMessage: 'Gracias por su pago. Conserve este comprobante.',
-  receiptLegalText: 'Este comprobante es v�lido como soporte del pago registrado.',
+  receiptLegalText: 'Este comprobante es vÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¯ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¿ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â½lido como soporte del pago registrado.',
   receiptFooter: 'Generado por App Cobros',
   currency: 'COP',
   primaryColor: '#2563EB',
@@ -258,7 +284,9 @@ function safeCreditStatus(value: unknown): CreditStatus {
 }
 
 function safePaymentStatus(value: unknown): PaymentStatus {
-  return value === 'anulado' ? 'anulado' : 'activo';
+  if (value === 'anulado') return 'anulado';
+  if (value === 'editado') return 'editado';
+  return 'activo';
 }
 
 function safeExpenseStatus(value: unknown): ExpenseStatus {
@@ -300,6 +328,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [selectedClientId, setSelectedClientId] = useState('');
   const [selectedCreditId, setSelectedCreditId] = useState('');
   const [selectedExpenseId, setSelectedExpenseId] = useState('');
+  const [selectedPaymentId, setSelectedPaymentId] = useState('');
   const [lastReceipt, setLastReceipt] = useState<PaymentReceipt | null>(null);
 
   const [clients, setClients] = useState<Client[]>([]);
@@ -319,6 +348,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [lastSyncAt, setLastSyncAt] = useState('');
 
   const isAdmin = session.role === 'admin';
+  const isSupervisor = session.role === 'supervisor';
+  const canManagePayments = isAdmin || isSupervisor;
 
   useEffect(() => {
     const updateConnection = (state: { isConnected: boolean | null; isInternetReachable: boolean | null }) => {
@@ -449,6 +480,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const selectedExpense = useMemo(
     () => expenses.find((expense) => expense.id === selectedExpenseId),
     [expenses, selectedExpenseId]
+  );
+
+  const selectedPayment = useMemo(
+    () => payments.find((payment) => payment.id === selectedPaymentId),
+    [payments, selectedPaymentId]
   );
 
   const getClientName = (clientId: string) => {
@@ -716,7 +752,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
             numeroCuotas: safeNumber(data.numeroCuotas),
             valorCuota: safeNumber(data.valorCuota),
             frecuencia: data.frecuencia ?? 'Diaria',
-            estado: safeCreditStatus(data.estado),
+            fechaFinal: data.fechaFinal ?? '',
+            porcentaje: safeNumber(data.porcentaje),
+            tipoCobro: data.tipoCobro ?? data.frecuencia ?? 'Diaria',
+            nota: data.nota ?? '',
+            codeudorTiene: Boolean(data.codeudorTiene),
+            codeudorTipo: data.codeudorTipo ?? 'nuevo',
+            codeudorClienteId: data.codeudorClienteId ?? '',
+            codeudorNombreCompleto: data.codeudorNombreCompleto ?? '',
+            codeudorSobrenombre: data.codeudorSobrenombre ?? '',
+            codeudorCpf: data.codeudorCpf ?? '',
+            codeudorDireccion: data.codeudorDireccion ?? '',
+            codeudorTelefono: data.codeudorTelefono ?? '',
+            codeudorNota: data.codeudorNota ?? '',            estado: safeCreditStatus(data.estado),
             fechaInicio: data.fechaInicio ?? todayKey(),
             createdAt: data.createdAt ?? nowIso(),
             createdBy: data.createdBy,
@@ -747,7 +795,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const paymentsQuery = isAdmin
+    const paymentsQuery = canManagePayments
       ? query(collection(db, 'pagos'))
       : query(collection(db, 'pagos'), where('assignedToUid', '==', session.uid));
 
@@ -765,6 +813,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
             valorPagado: safeNumber(data.valorPagado),
             metodoPago: data.metodoPago ?? 'Efectivo',
             fechaPago: data.fechaPago ?? todayKey(),
+            fechaHoraPago: data.fechaHoraPago,
+            saldoAnterior: data.saldoAnterior,
+            saldoNuevo: data.saldoNuevo,
+            editadoPor: data.editadoPor,
+            editadoEn: data.editadoEn,
+            motivoEdicion: data.motivoEdicion,
+            valorOriginal: data.valorOriginal,
             observacion: data.observacion ?? '',
             estado: safePaymentStatus(data.estado),
             createdAt: data.createdAt ?? nowIso(),
@@ -1049,6 +1104,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setCurrentScreen('editExpense');
   };
 
+  const selectPayment = (paymentId: string) => {
+    setSelectedPaymentId(paymentId);
+    setCurrentScreen('editPayment');
+  };
+
   const addClient = async (input: NewClientInput) => {
     if (!isAdmin) {
       Alert.alert('Acceso restringido', 'Solo un administrador puede crear clientes.');
@@ -1107,6 +1167,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         saldoPendiente: input.valorTotal,
         valorCuota,
         estado: 'activo',
+        fechaHoraPago: nowIso(),
         createdAt: nowIso(),
         createdBy: session.email,
         assignedToUid: client?.assignedToUid ?? '',
@@ -1295,6 +1356,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         clienteId: credit.clienteId,
         usuarioEmail: session.email,
         estado: 'activo',
+        fechaHoraPago: nowIso(),
         createdAt: nowIso(),
         createdBy: session.email,
         assignedToUid: credit.assignedToUid ?? session.uid,
@@ -1331,9 +1393,114 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const updatePayment = async (paymentId: string, input: UpdatePaymentInput) => {
+    if (!canManagePayments) {
+      Alert.alert('Acceso restringido', 'Solo supervisor o administrador puede editar pagos.');
+      return;
+    }
+
+    const localPayment = payments.find((payment) => payment.id === paymentId);
+
+    if (!localPayment) {
+      Alert.alert('Pago no encontrado', 'No se encontro el pago seleccionado.');
+      return;
+    }
+
+    if (localPayment.estado === 'anulado') {
+      Alert.alert('Pago anulado', 'No se puede editar un pago anulado.');
+      return;
+    }
+
+    if (!input.motivo.trim()) {
+      Alert.alert('Motivo requerido', 'Escribe el motivo de la edicion.');
+      return;
+    }
+
+    try {
+      await runTransaction(db, async (transaction) => {
+        const paymentRef = doc(db, 'pagos', paymentId);
+        const creditRef = doc(db, 'creditos', localPayment.creditoId);
+        const auditRef = doc(collection(db, 'auditoria'));
+
+        const paymentSnap = await transaction.get(paymentRef);
+        const creditSnap = await transaction.get(creditRef);
+
+        if (!paymentSnap.exists()) throw new Error('El pago no existe.');
+        if (!creditSnap.exists()) throw new Error('El credito no existe.');
+
+        const paymentData = paymentSnap.data();
+        const creditData = creditSnap.data();
+
+        if (paymentData.estado === 'anulado') {
+          throw new Error('El pago ya esta anulado.');
+        }
+
+        const oldValue = Number(paymentData.valorPagado || 0);
+        const newValue = Number(input.valorPagado || 0);
+        const currentBalance = Number(creditData.saldoPendiente || 0);
+        const totalCredit = Number(creditData.valorTotal || 0);
+        const difference = newValue - oldValue;
+        const nextBalance = Math.max(0, Math.min(totalCredit, currentBalance - difference));
+        const nextCreditStatus: CreditStatus = nextBalance === 0 ? 'pagado' : creditData.estado === 'vencido' ? 'vencido' : 'activo';
+        const fecha = nowIso();
+
+        transaction.update(paymentRef, {
+          valorOriginal: oldValue,
+          valorPagado: newValue,
+          metodoPago: input.metodoPago,
+          fechaPago: input.fechaPago,
+          observacion: input.observacion,
+          estado: 'editado',
+          editadoPor: session.email,
+          editadoEn: fecha,
+          motivoEdicion: input.motivo,
+          updatedAt: fecha,
+          updatedBy: session.email
+        });
+
+        transaction.update(creditRef, {
+          saldoPendiente: nextBalance,
+          estado: nextCreditStatus,
+          updatedAt: fecha,
+          updatedBy: session.email
+        });
+
+        transaction.set(auditRef, {
+          tipo: 'EDITAR_PAGO',
+          descripcion: `Pago editado por ${session.email}`,
+          pagoId: paymentId,
+          creditoId: localPayment.creditoId,
+          clienteId: localPayment.clienteId,
+          valor: newValue,
+          motivo: input.motivo,
+          usuarioEmail: session.email,
+          datosAnteriores: {
+            valorPagado: oldValue,
+            metodoPago: paymentData.metodoPago || '',
+            fechaPago: paymentData.fechaPago || '',
+            observacion: paymentData.observacion || ''
+          },
+          datosNuevos: {
+            valorPagado: newValue,
+            metodoPago: input.metodoPago,
+            fechaPago: input.fechaPago,
+            observacion: input.observacion
+          },
+          createdAt: fecha
+        });
+      });
+
+      Alert.alert('Pago editado', 'El pago fue actualizado y quedo registro en auditoria.');
+      setCurrentScreen('payments');
+    } catch (error) {
+      console.error('Error editando pago:', error);
+      Alert.alert('Error Firebase', 'No se pudo editar el pago.');
+    }
+  };
+
   const cancelPayment = async (paymentId: string, motivo = 'Anulacion desde app') => {
-    if (!isAdmin) {
-      Alert.alert('Acceso restringido', 'Solo un administrador puede anular pagos.');
+    if (!canManagePayments) {
+      Alert.alert('Acceso restringido', 'Solo supervisor o administrador puede anular pagos.');
       return;
     }
 
@@ -1416,6 +1583,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       await addDoc(collection(db, 'gastos'), {
         ...input,
         estado: 'activo',
+        fechaHoraPago: nowIso(),
         createdAt: nowIso(),
         createdBy: session.email
       });
@@ -1527,6 +1695,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       await addDoc(collection(db, 'rutas'), {
         ...input,
         estado: 'activo',
+        fechaHoraPago: nowIso(),
         createdAt: nowIso(),
         createdBy: session.email
       });
@@ -1638,7 +1807,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const localVisit = visits.find((visit) => visit.id === visitId);
 
     if (!localVisit) {
-      Alert.alert('Promesa no encontrada', 'No se encontró la promesa seleccionada.');
+      Alert.alert('Promesa no encontrada', 'No se encontrÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³ la promesa seleccionada.');
       return;
     }
 
@@ -1878,6 +2047,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     selectedCredit,
     selectedExpenseId,
     selectedExpense,
+    selectedPaymentId,
+    selectedPayment,
     clients,
     credits,
     payments,
@@ -1894,6 +2065,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     offlineReady,
     lastSyncAt,
     isAdmin,
+    isSupervisor,
+    canManagePayments,
     login,
     logout,
     navigate,
@@ -1901,6 +2074,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     selectClient,
     selectCredit,
     selectExpense,
+    selectPayment,
     addClient,
     updateClient,
     addCredit,
@@ -1909,6 +2083,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     cancelCredit,
     addPayment,
     cancelPayment,
+    updatePayment,
     addExpense,
     updateExpense,
     cancelExpense,

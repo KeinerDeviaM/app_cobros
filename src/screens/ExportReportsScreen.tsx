@@ -1,46 +1,72 @@
-import React, { useMemo } from 'react';
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { BottomNav } from '../components/BottomNav';
 import { Button } from '../components/Button';
 import { Card } from '../components/Card';
+import { EmptyState } from '../components/EmptyState';
+import { Input } from '../components/Input';
 import { Screen } from '../components/Screen';
+import { StatusBadge } from '../components/StatusBadge';
 import { TopBar } from '../components/TopBar';
 import { useApp } from '../state/AppContext';
 import { colors } from '../theme/colors';
 import { todayKey } from '../utils/date';
+import { buildInstallments } from '../utils/installments';
+import { formatMoney } from '../utils/money';
 
-function cleanCsvValue(value: unknown) {
-  const text = String(value ?? '');
-  return `"${text.replace(/"/g, '""')}"`;
+type PeriodFilter = 'dia' | 'semana' | 'quincena' | 'mes' | 'personalizado';
+type ReportTab = 'resumen' | 'pagos' | 'gastos' | 'creditos' | 'clientes' | 'caja';
+
+function csvValue(value: unknown) {
+  return `"${String(value ?? '').replace(/"/g, '""')}"`;
 }
 
 function toCsv(headers: string[], rows: unknown[][]) {
-  const csvHeaders = headers.map(cleanCsvValue).join(',');
-  const csvRows = rows.map((row) => row.map(cleanCsvValue).join(','));
-  return [csvHeaders, ...csvRows].join('\n');
+  return [headers.map(csvValue).join(','), ...rows.map((row) => row.map(csvValue).join(','))].join('\n');
 }
 
-async function shareCsv(filename: string, content: string) {
-  const available = await Sharing.isAvailableAsync();
+function parseDateKey(value: string) {
+  const [year, month, day] = value.split('-').map(Number);
+  return new Date(year, month - 1, day);
+}
 
-  if (!available) {
-    Alert.alert('Compartir no disponible', 'Este dispositivo no permite compartir archivos.');
-    return;
-  }
+function formatDateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
 
-  const fileUri = `${FileSystem.cacheDirectory}${filename}`;
+function addDays(value: string, days: number) {
+  const date = parseDateKey(value);
+  date.setDate(date.getDate() + days);
+  return formatDateKey(date);
+}
 
-  await FileSystem.writeAsStringAsync(fileUri, content, {
-    encoding: FileSystem.EncodingType.UTF8
-  });
+function startOfMonth(value: string) {
+  const date = parseDateKey(value);
+  return formatDateKey(new Date(date.getFullYear(), date.getMonth(), 1));
+}
 
-  await Sharing.shareAsync(fileUri, {
-    mimeType: 'text/csv',
-    dialogTitle: 'Compartir reporte',
-    UTI: 'public.comma-separated-values-text'
-  });
+function endOfMonth(value: string) {
+  const date = parseDateKey(value);
+  return formatDateKey(new Date(date.getFullYear(), date.getMonth() + 1, 0));
+}
+
+function inRange(date: string, start: string, end: string) {
+  if (start && date < start) return false;
+  if (end && date > end) return false;
+  return true;
+}
+
+function normalize(value: unknown) {
+  return String(value ?? '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
 }
 
 export function ExportReportsScreen() {
@@ -49,321 +75,752 @@ export function ExportReportsScreen() {
     credits,
     payments,
     expenses,
-    visits,
-    cashClosings,
     routes,
     users,
+    cashClosings,
     businessSettings,
-    navigate,
-    getClientName
+    getClientName,
+    navigate
   } = useApp();
 
-  const today = todayKey();
+  const [period, setPeriod] = useState<PeriodFilter>('dia');
+  const [tab, setTab] = useState<ReportTab>('resumen');
+  const [startDate, setStartDate] = useState(todayKey());
+  const [endDate, setEndDate] = useState(todayKey());
+  const [routeId, setRouteId] = useState('');
+  const [collectorUid, setCollectorUid] = useState('');
+  const [method, setMethod] = useState('');
+  const [creditStatus, setCreditStatus] = useState('');
+  const [query, setQuery] = useState('');
 
-  const activePayments = useMemo(() => {
-    return payments.filter((payment) => payment.estado !== 'anulado');
+  const selectedRoute = routes.find((route) => route.id === routeId);
+  const selectedCollector = users.find((user) => user.uid === collectorUid || user.id === collectorUid);
+
+  const applyPeriod = (nextPeriod: PeriodFilter) => {
+    const today = todayKey();
+
+    setPeriod(nextPeriod);
+
+    if (nextPeriod === 'dia') {
+      setStartDate(today);
+      setEndDate(today);
+    }
+
+    if (nextPeriod === 'semana') {
+      setStartDate(addDays(today, -6));
+      setEndDate(today);
+    }
+
+    if (nextPeriod === 'quincena') {
+      setStartDate(addDays(today, -14));
+      setEndDate(today);
+    }
+
+    if (nextPeriod === 'mes') {
+      setStartDate(startOfMonth(today));
+      setEndDate(endOfMonth(today));
+    }
+  };
+
+  const routeClients = useMemo(() => {
+    if (!routeId) return clients;
+    return clients.filter((client) => client.routeId === routeId);
+  }, [clients, routeId]);
+
+  const routeClientIds = useMemo(() => {
+    return new Set(routeClients.map((client) => client.id));
+  }, [routeClients]);
+
+  const filteredClients = useMemo(() => {
+    const value = normalize(query);
+
+    return routeClients.filter((client) => {
+      if (collectorUid && client.assignedToUid !== collectorUid) return false;
+
+      if (value) {
+        const text = [
+          client.nombre,
+          client.telefono,
+          client.direccion,
+          client.routeName,
+          client.assignedToEmail,
+          client.estado
+        ].join(' ');
+
+        if (!normalize(text).includes(value)) return false;
+      }
+
+      return true;
+    });
+  }, [collectorUid, query, routeClients]);
+
+  const filteredClientIds = useMemo(() => {
+    return new Set(filteredClients.map((client) => client.id));
+  }, [filteredClients]);
+
+  const filteredCredits = useMemo(() => {
+    return credits.filter((credit) => {
+      if (!filteredClientIds.has(credit.clienteId)) return false;
+      if (creditStatus && credit.estado !== creditStatus) return false;
+      if (collectorUid && credit.assignedToUid !== collectorUid) return false;
+
+      if (query.trim()) {
+        const text = [
+          getClientName(credit.clienteId),
+          credit.id,
+          credit.estado,
+          credit.frecuencia,
+          credit.assignedToEmail,
+          credit.createdBy
+        ].join(' ');
+
+        if (!normalize(text).includes(normalize(query))) return false;
+      }
+
+      return true;
+    });
+  }, [collectorUid, creditStatus, credits, filteredClientIds, getClientName, query]);
+
+  const filteredPayments = useMemo(() => {
+    return payments.filter((payment) => {
+      if (payment.estado === 'anulado') return false;
+      if (!inRange(payment.fechaPago, startDate, endDate)) return false;
+      if (!filteredClientIds.has(payment.clienteId)) return false;
+      if (collectorUid && payment.assignedToUid !== collectorUid) return false;
+      if (method && payment.metodoPago !== method) return false;
+
+      if (query.trim()) {
+        const text = [
+          getClientName(payment.clienteId),
+          payment.usuarioEmail,
+          payment.metodoPago,
+          payment.observacion,
+          payment.estado,
+          payment.creditoId
+        ].join(' ');
+
+        if (!normalize(text).includes(normalize(query))) return false;
+      }
+
+      return true;
+    });
+  }, [collectorUid, endDate, filteredClientIds, getClientName, method, payments, query, startDate]);
+
+  const filteredExpenses = useMemo(() => {
+    return expenses.filter((expense) => {
+      const data = expense as typeof expense & {
+        routeId?: string;
+        routeName?: string;
+        metodoPago?: string;
+        nota?: string;
+        usuarioUid?: string;
+        createdByUid?: string;
+      };
+
+      if (expense.estado === 'anulado') return false;
+      if (!inRange(expense.fecha, startDate, endDate)) return false;
+      if (routeId && data.routeId && data.routeId !== routeId) return false;
+      if (routeId && !data.routeId && selectedRoute && data.routeName && data.routeName !== selectedRoute.nombre) return false;
+      if (collectorUid && data.usuarioUid !== collectorUid && data.createdByUid !== collectorUid) return false;
+
+      if (query.trim()) {
+        const text = [
+          expense.descripcion,
+          expense.createdBy,
+          data.routeName,
+          data.metodoPago,
+          data.nota,
+          expense.estado
+        ].join(' ');
+
+        if (!normalize(text).includes(normalize(query))) return false;
+      }
+
+      return true;
+    });
+  }, [collectorUid, endDate, expenses, query, routeId, selectedRoute, startDate]);
+
+  const filteredCashClosings = useMemo(() => {
+    return cashClosings.filter((closing) => {
+      const data = closing as typeof closing & {
+        routeId?: string;
+        routeName?: string;
+      };
+
+      if (!inRange(closing.fecha, startDate, endDate)) return false;
+      if (collectorUid && closing.usuarioUid !== collectorUid) return false;
+      if (routeId && data.routeId && data.routeId !== routeId) return false;
+      if (routeId && !data.routeId && selectedRoute && data.routeName && data.routeName !== selectedRoute.nombre) return false;
+
+      return true;
+    });
+  }, [cashClosings, collectorUid, endDate, routeId, selectedRoute, startDate]);
+
+  const creditPaymentMap = useMemo(() => {
+    const map = new Map<string, number>();
+
+    payments
+      .filter((payment) => payment.estado !== 'anulado')
+      .forEach((payment) => {
+        map.set(payment.creditoId, (map.get(payment.creditoId) || 0) + payment.valorPagado);
+      });
+
+    return map;
   }, [payments]);
 
-  const exportClients = async () => {
-    const content = toCsv(
-      [
-        'Nombre',
-        'Documento',
-        'Telefono',
-        'Direccion',
-        'Barrio',
-        'Estado',
-        'Cobrador',
-        'Ruta',
-        'Creado por',
-        'Fecha creacion'
-      ],
-      clients.map((client) => [
-        client.nombre,
-        client.documento,
-        client.telefono,
-        client.direccion,
-        client.barrio,
-        client.estado,
-        client.assignedToEmail || 'Sin asignar',
-        client.routeName || 'Sin ruta',
-        client.createdBy || '',
-        client.createdAt
-      ])
-    );
+  const totals = useMemo(() => {
+    const totalPayments = filteredPayments.reduce((total, payment) => total + payment.valorPagado, 0);
+    const totalCash = filteredPayments
+      .filter((payment) => payment.metodoPago === 'Efectivo')
+      .reduce((total, payment) => total + payment.valorPagado, 0);
 
-    await shareCsv(`clientes-${today}.csv`, content);
-  };
+    const totalTransfer = filteredPayments
+      .filter((payment) => payment.metodoPago !== 'Efectivo')
+      .reduce((total, payment) => total + payment.valorPagado, 0);
 
-  const exportCredits = async () => {
-    const content = toCsv(
-      [
-        'Cliente',
-        'Valor prestado',
-        'Valor total',
-        'Saldo pendiente',
-        'Numero cuotas',
-        'Valor cuota',
-        'Frecuencia',
-        'Estado',
-        'Fecha inicio',
-        'Cobrador',
-        'Creado por',
-        'Fecha creacion'
-      ],
-      credits.map((credit) => [
-        getClientName(credit.clienteId),
-        credit.valorPrestado,
-        credit.valorTotal,
-        credit.saldoPendiente,
-        credit.numeroCuotas,
-        credit.valorCuota,
-        credit.frecuencia,
-        credit.estado,
-        credit.fechaInicio,
-        credit.assignedToEmail || 'Sin asignar',
-        credit.createdBy || '',
-        credit.createdAt
-      ])
-    );
+    const totalExpenses = filteredExpenses.reduce((total, expense) => total + expense.valor, 0);
+    const totalLoaned = filteredCredits
+      .filter((credit) => credit.estado !== 'anulado')
+      .reduce((total, credit) => total + credit.valorPrestado, 0);
 
-    await shareCsv(`creditos-${today}.csv`, content);
-  };
+    const totalToPay = filteredCredits
+      .filter((credit) => credit.estado !== 'anulado')
+      .reduce((total, credit) => total + credit.valorTotal, 0);
 
-  const exportPayments = async () => {
-    const content = toCsv(
-      [
-        'Cliente',
-        'Valor pagado',
-        'Metodo',
-        'Fecha pago',
-        'Estado',
-        'Cobrador',
-        'Observacion',
-        'Anulado por',
-        'Fecha anulacion',
-        'Motivo anulacion',
-        'Fecha creacion'
-      ],
-      payments.map((payment) => [
-        getClientName(payment.clienteId),
-        payment.valorPagado,
-        payment.metodoPago,
-        payment.fechaPago,
-        payment.estado,
-        payment.usuarioEmail,
-        payment.observacion,
-        payment.anuladoPor || '',
-        payment.anuladoEn || '',
-        payment.motivoAnulacion || '',
-        payment.createdAt
-      ])
-    );
+    const totalPending = filteredCredits
+      .filter((credit) => credit.estado !== 'anulado')
+      .reduce((total, credit) => total + credit.saldoPendiente, 0);
 
-    await shareCsv(`pagos-${today}.csv`, content);
-  };
+    const estimatedToday = filteredCredits
+      .filter((credit) => credit.estado !== 'anulado' && credit.estado !== 'pagado')
+      .reduce((total, credit) => {
+        const due = buildInstallments(credit, payments, todayKey()).filter(
+          (item) => item.fecha <= todayKey() && item.pendiente > 0
+        );
 
-  const exportDailyCash = async () => {
-    const todayPayments = activePayments.filter((payment) => payment.fechaPago === today);
-    const todayExpenses = expenses.filter((expense) => expense.estado !== 'anulado' && expense.fecha === today);
+        return total + due.reduce((sum, item) => sum + item.pendiente, 0);
+      }, 0);
 
-    const totalPayments = todayPayments.reduce((total, payment) => total + payment.valorPagado, 0);
-    const totalExpenses = todayExpenses.reduce((total, expense) => total + expense.valor, 0);
+    return {
+      totalPayments,
+      totalCash,
+      totalTransfer,
+      totalExpenses,
+      netCash: totalPayments - totalExpenses,
+      totalLoaned,
+      totalToPay,
+      totalPending,
+      estimatedToday,
+      activeCredits: filteredCredits.filter((credit) => credit.estado === 'activo').length,
+      paidCredits: filteredCredits.filter((credit) => credit.estado === 'pagado').length,
+      overdueCredits: filteredCredits.filter((credit) => credit.estado === 'vencido').length,
+      canceledCredits: filteredCredits.filter((credit) => credit.estado === 'anulado').length,
+      clientsOk: filteredClients.filter((client) => client.estado === 'al-dia').length,
+      clientsMora: filteredClients.filter((client) => client.estado === 'en-mora').length
+    };
+  }, [filteredClients, filteredCredits, filteredExpenses, filteredPayments, payments]);
 
-    const content = toCsv(
-      ['Tipo', 'Descripcion', 'Valor', 'Fecha', 'Usuario', 'Observacion'],
-      [
-        ['RESUMEN', 'Total pagos activos', totalPayments, today, '', ''],
-        ['RESUMEN', 'Total gastos', totalExpenses, today, '', ''],
-        ['RESUMEN', 'Caja esperada', totalPayments - totalExpenses, today, '', ''],
-        ...todayPayments.map((payment) => [
-          'PAGO',
-          getClientName(payment.clienteId),
-          payment.valorPagado,
-          payment.fechaPago,
+  const routeSummary = useMemo(() => {
+    return routes.map((route) => {
+      const routeClientList = clients.filter((client) => client.routeId === route.id);
+      const ids = new Set(routeClientList.map((client) => client.id));
+      const routeCredits = credits.filter((credit) => ids.has(credit.clienteId) && credit.estado !== 'anulado');
+      const routePayments = payments.filter((payment) => ids.has(payment.clienteId) && payment.estado !== 'anulado' && inRange(payment.fechaPago, startDate, endDate));
+      const routeExpenses = expenses.filter((expense) => {
+        const data = expense as typeof expense & {
+          routeId?: string;
+          routeName?: string;
+        };
+
+        if (expense.estado === 'anulado') return false;
+        if (!inRange(expense.fecha, startDate, endDate)) return false;
+        if (data.routeId) return data.routeId === route.id;
+        if (data.routeName) return data.routeName === route.nombre;
+
+        return false;
+      });
+
+      const paid = routePayments.reduce((total, payment) => total + payment.valorPagado, 0);
+      const spent = routeExpenses.reduce((total, expense) => total + expense.valor, 0);
+      const pending = routeCredits.reduce((total, credit) => total + credit.saldoPendiente, 0);
+
+      return {
+        route,
+        clients: routeClientList.length,
+        paid,
+        spent,
+        pending,
+        net: paid - spent
+      };
+    });
+  }, [clients, credits, endDate, expenses, payments, routes, startDate]);
+
+  const exportCurrentReport = async () => {
+    const headers = [
+      'Reporte',
+      'Ruta',
+      'Cliente',
+      'Cobrador',
+      'Credito ID',
+      'Fecha',
+      'Metodo',
+      'Estado',
+      'Valor prestado',
+      'Total a pagar',
+      'Total pagado',
+      'Saldo pendiente',
+      'Pago',
+      'Gasto',
+      'Caja neta',
+      'Nota'
+    ];
+
+    const rows: unknown[][] = [
+      ...filteredPayments.map((payment) => {
+        const client = clients.find((item) => item.id === payment.clienteId);
+        const credit = credits.find((item) => item.id === payment.creditoId);
+
+        return [
+          'Pago',
+          client?.routeName || selectedRoute?.nombre || '',
+          client?.nombre || getClientName(payment.clienteId),
           payment.usuarioEmail,
-          payment.observacion
-        ]),
-        ...todayExpenses.map((expense) => [
-          'GASTO',
-          expense.descripcion,
-          expense.valor,
-          expense.fecha,
+          payment.creditoId,
+          payment.fechaPago,
+          payment.metodoPago,
+          payment.estado,
+          credit?.valorPrestado || '',
+          credit?.valorTotal || '',
+          '',
+          credit?.saldoPendiente || '',
+          payment.valorPagado,
+          '',
+          '',
+          payment.observacion || ''
+        ];
+      }),
+      ...filteredExpenses.map((expense) => {
+        const data = expense as typeof expense & {
+          routeName?: string;
+          metodoPago?: string;
+          nota?: string;
+        };
+
+        return [
+          'Gasto',
+          data.routeName || selectedRoute?.nombre || '',
+          '',
           expense.createdBy || '',
-          ''
-        ])
-      ]
-    );
+          '',
+          expense.fecha,
+          data.metodoPago || '',
+          expense.estado,
+          '',
+          '',
+          '',
+          '',
+          '',
+          expense.valor,
+          '',
+          data.nota || expense.descripcion
+        ];
+      }),
+      ...filteredCredits.map((credit) => {
+        const client = clients.find((item) => item.id === credit.clienteId);
+        const totalPaid = creditPaymentMap.get(credit.id) || 0;
 
-    await shareCsv(`caja-diaria-${today}.csv`, content);
-  };
-
-  const exportVisits = async () => {
-    const content = toCsv(
-      [
+        return [
+          'Credito',
+          client?.routeName || selectedRoute?.nombre || '',
+          client?.nombre || getClientName(credit.clienteId),
+          credit.assignedToEmail || '',
+          credit.id,
+          credit.fechaInicio,
+          credit.frecuencia,
+          credit.estado,
+          credit.valorPrestado,
+          credit.valorTotal,
+          totalPaid,
+          credit.saldoPendiente,
+          '',
+          '',
+          '',
+          credit.nota || ''
+        ];
+      }),
+      ...filteredClients.map((client) => [
         'Cliente',
-        'Telefono',
-        'Direccion',
-        'Barrio',
-        'Fecha',
-        'Estado',
-        'Observacion',
-        'Promesa fecha',
-        'Ruta',
-        'Cobrador',
-        'Fecha creacion'
-      ],
-      visits.map((visit) => [
-        visit.clienteNombre,
-        visit.clienteTelefono,
-        visit.clienteDireccion,
-        visit.clienteBarrio,
-        visit.fecha,
-        visit.estado,
-        visit.observacion,
-        visit.promesaFecha || '',
-        visit.routeName || 'Sin ruta',
-        visit.assignedToEmail || 'Sin cobrador',
-        visit.createdAt
+        client.routeName || selectedRoute?.nombre || '',
+        client.nombre,
+        client.assignedToEmail || '',
+        '',
+        '',
+        '',
+        client.estado,
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        client.telefono
+      ]),
+      ...routeSummary.map((item) => [
+        'Resumen ruta',
+        item.route.nombre,
+        `${item.clients} clientes`,
+        '',
+        '',
+        `${startDate} a ${endDate}`,
+        '',
+        '',
+        '',
+        '',
+        item.paid,
+        item.pending,
+        item.paid,
+        item.spent,
+        item.net,
+        ''
       ])
-    );
+    ];
 
-    await shareCsv(`visitas-${today}.csv`, content);
-  };
+    const summaryRows: unknown[][] = [
+      ['Resumen', '', '', '', '', `${startDate} a ${endDate}`, '', '', totals.totalLoaned, totals.totalToPay, totals.totalPayments, totals.totalPending, totals.totalPayments, totals.totalExpenses, totals.netCash, 'Totales generales'],
+      ['Resumen efectivo', '', '', '', '', `${startDate} a ${endDate}`, 'Efectivo', '', '', '', '', '', totals.totalCash, '', '', 'Total efectivo'],
+      ['Resumen transferencia', '', '', '', '', `${startDate} a ${endDate}`, 'Transferencia/Otros', '', '', '', '', '', totals.totalTransfer, '', '', 'Total transferencia y otros']
+    ];
 
-  const exportClosings = async () => {
-    const content = toCsv(
-      [
-        'Fecha',
-        'Usuario',
-        'Total pagos',
-        'Total gastos',
-        'Caja esperada',
-        'Caja entregada',
-        'Diferencia',
-        'Observacion',
-        'Fecha cierre'
-      ],
-      cashClosings.map((closing) => [
-        closing.fecha,
-        closing.usuarioEmail,
-        closing.totalPagos,
-        closing.totalGastos,
-        closing.cajaEsperada,
-        closing.cajaEntregada,
-        closing.diferencia,
-        closing.observacion,
-        closing.createdAt
-      ])
-    );
+    const csv = toCsv(headers, [...summaryRows, ...rows]);
+    const available = await Sharing.isAvailableAsync();
 
-    await shareCsv(`cierres-caja-${today}.csv`, content);
-  };
+    if (!available) {
+      Alert.alert('Compartir no disponible', 'Este dispositivo no permite compartir archivos.');
+      return;
+    }
 
-  const exportRoutes = async () => {
-    const content = toCsv(
-      [
-        'Ruta',
-        'Zona',
-        'Descripcion',
-        'Clientes',
-        'Clientes en mora',
-        'Saldo pendiente'
-      ],
-      routes.map((route) => {
-        const routeClients = clients.filter((client) => client.routeId === route.id);
-        const routeClientIds = new Set(routeClients.map((client) => client.id));
-        const routeCredits = credits.filter((credit) => routeClientIds.has(credit.clienteId));
-        const pending = routeCredits.reduce((total, credit) => total + credit.saldoPendiente, 0);
+    const name = `reporte-cobroapp-${startDate}-a-${endDate}.csv`;
+    const uri = `${FileSystem.cacheDirectory}${name}`;
 
-        return [
-          route.nombre,
-          route.zona,
-          route.descripcion,
-          routeClients.length,
-          routeClients.filter((client) => client.estado === 'en-mora').length,
-          pending
-        ];
-      })
-    );
+    await FileSystem.writeAsStringAsync(uri, csv, {
+      encoding: FileSystem.EncodingType.UTF8
+    });
 
-    await shareCsv(`rutas-${today}.csv`, content);
-  };
-
-  const exportCollectors = async () => {
-    const collectors = users.filter((user) => user.role === 'cobrador');
-
-    const content = toCsv(
-      [
-        'Cobrador',
-        'Activo',
-        'Clientes',
-        'Creditos activos',
-        'Saldo pendiente',
-        'Recaudado total'
-      ],
-      collectors.map((collector) => {
-        const collectorClients = clients.filter((client) => client.assignedToUid === collector.uid);
-        const collectorCredits = credits.filter((credit) => credit.assignedToUid === collector.uid);
-        const collectorPayments = activePayments.filter((payment) => payment.assignedToUid === collector.uid);
-
-        return [
-          collector.email,
-          collector.activo ? 'Si' : 'No',
-          collectorClients.length,
-          collectorCredits.filter((credit) => credit.estado === 'activo').length,
-          collectorCredits.reduce((total, credit) => total + credit.saldoPendiente, 0),
-          collectorPayments.reduce((total, payment) => total + payment.valorPagado, 0)
-        ];
-      })
-    );
-
-    await shareCsv(`cobradores-${today}.csv`, content);
+    await Sharing.shareAsync(uri, {
+      mimeType: 'text/csv',
+      dialogTitle: 'Exportar reporte para Excel'
+    });
   };
 
   return (
     <View style={styles.root}>
       <TopBar title="Exportar reportes" showBack onBack={() => navigate('more')} />
+
       <Screen>
-        <Card style={styles.infoCard}>
-          <Text style={styles.infoTitle}>Reportes CSV</Text>
-          <Text style={styles.infoText}>
-            Genera archivos CSV para abrirlos en Excel, Google Sheets o compartirlos por WhatsApp/correo.
-          </Text>
-          <Text style={styles.businessText}>
-            Negocio: {businessSettings.businessName}
+        <Card style={styles.heroCard}>
+          <Text style={styles.heroTitle}>{businessSettings.appName || 'CobroApp'} - Reportes Excel</Text>
+          <Text style={styles.heroText}>
+            Filtra por fecha, ruta, cobrador, cliente, metodo de pago y estado para exportar reportes compatibles con Excel.
           </Text>
         </Card>
 
-        <Card style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>Información principal</Text>
-          <Button title="Exportar clientes" variant="secondary" onPress={exportClients} style={styles.button} />
-          <Button title="Exportar créditos" variant="secondary" onPress={exportCredits} style={styles.button} />
-          <Button title="Exportar pagos" variant="secondary" onPress={exportPayments} style={styles.button} />
-        </Card>
+        <Text style={styles.label}>Periodo</Text>
 
-        <Card style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>Operación diaria</Text>
-          <Button title="Exportar caja diaria de hoy" variant="secondary" onPress={exportDailyCash} style={styles.button} />
-          <Button title="Exportar visitas" variant="secondary" onPress={exportVisits} style={styles.button} />
-          <Button title="Exportar cierres de caja" variant="secondary" onPress={exportClosings} style={styles.button} />
-        </Card>
+        <View style={styles.chips}>
+          <Chip label="Diario" selected={period === 'dia'} onPress={() => applyPeriod('dia')} />
+          <Chip label="Semanal" selected={period === 'semana'} onPress={() => applyPeriod('semana')} />
+          <Chip label="Quincenal" selected={period === 'quincena'} onPress={() => applyPeriod('quincena')} />
+          <Chip label="Mensual" selected={period === 'mes'} onPress={() => applyPeriod('mes')} />
+          <Chip label="Personalizado" selected={period === 'personalizado'} onPress={() => setPeriod('personalizado')} />
+        </View>
 
-        <Card style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>Administración</Text>
-          <Button title="Exportar rutas" variant="secondary" onPress={exportRoutes} style={styles.button} />
-          <Button title="Exportar cobradores" variant="secondary" onPress={exportCollectors} style={styles.button} />
-        </Card>
+        <Input label="Fecha inicial" icon="I" value={startDate} onChangeText={(value) => { setStartDate(value); setPeriod('personalizado'); }} placeholder="YYYY-MM-DD" />
+        <Input label="Fecha final" icon="F" value={endDate} onChangeText={(value) => { setEndDate(value); setPeriod('personalizado'); }} placeholder="YYYY-MM-DD" />
 
-        <Card style={styles.warningCard}>
-          <Text style={styles.warningTitle}>Nota</Text>
-          <Text style={styles.warningText}>
-            Los pagos anulados aparecen en el reporte de pagos, pero no suman en caja diaria ni en recaudos.
-          </Text>
-        </Card>
+        <Input label="Buscar" icon="B" value={query} onChangeText={setQuery} placeholder="Cliente, cobrador, credito, metodo o nota" />
+
+        <Text style={styles.label}>Ruta</Text>
+
+        <View style={styles.chips}>
+          <Chip label="Todas" selected={routeId === ''} onPress={() => setRouteId('')} />
+          {routes.map((route) => (
+            <Chip key={route.id} label={route.nombre} selected={routeId === route.id} onPress={() => setRouteId(route.id)} />
+          ))}
+        </View>
+
+        <Text style={styles.label}>Cobrador</Text>
+
+        <View style={styles.chips}>
+          <Chip label="Todos" selected={collectorUid === ''} onPress={() => setCollectorUid('')} />
+          {users.map((user) => (
+            <Chip key={user.id} label={user.email} selected={collectorUid === user.uid || collectorUid === user.id} onPress={() => setCollectorUid(user.uid || user.id)} />
+          ))}
+        </View>
+
+        <Text style={styles.label}>Metodo de pago</Text>
+
+        <View style={styles.chips}>
+          <Chip label="Todos" selected={method === ''} onPress={() => setMethod('')} />
+          <Chip label="Efectivo" selected={method === 'Efectivo'} onPress={() => setMethod('Efectivo')} />
+          <Chip label="Transferencia" selected={method === 'Transferencia'} onPress={() => setMethod('Transferencia')} />
+          <Chip label="Nequi" selected={method === 'Nequi'} onPress={() => setMethod('Nequi')} />
+          <Chip label="Daviplata" selected={method === 'Daviplata'} onPress={() => setMethod('Daviplata')} />
+          <Chip label="Otro" selected={method === 'Otro'} onPress={() => setMethod('Otro')} />
+        </View>
+
+        <Text style={styles.label}>Estado del credito</Text>
+
+        <View style={styles.chips}>
+          <Chip label="Todos" selected={creditStatus === ''} onPress={() => setCreditStatus('')} />
+          <Chip label="Activo" selected={creditStatus === 'activo'} onPress={() => setCreditStatus('activo')} />
+          <Chip label="Pagado" selected={creditStatus === 'pagado'} onPress={() => setCreditStatus('pagado')} />
+          <Chip label="Vencido" selected={creditStatus === 'vencido'} onPress={() => setCreditStatus('vencido')} />
+          <Chip label="Anulado" selected={creditStatus === 'anulado'} onPress={() => setCreditStatus('anulado')} />
+        </View>
+
+        <View style={styles.tabs}>
+          <Tab label="Resumen" value="resumen" current={tab} onPress={setTab} />
+          <Tab label="Pagos" value="pagos" current={tab} onPress={setTab} />
+          <Tab label="Gastos" value="gastos" current={tab} onPress={setTab} />
+          <Tab label="Creditos" value="creditos" current={tab} onPress={setTab} />
+          <Tab label="Clientes" value="clientes" current={tab} onPress={setTab} />
+          <Tab label="Caja" value="caja" current={tab} onPress={setTab} />
+        </View>
+
+        {tab === 'resumen' ? (
+          <>
+            <View style={styles.grid}>
+              <Metric title="Total pagos" value={formatMoney(totals.totalPayments)} />
+              <Metric title="Total gastos" value={formatMoney(totals.totalExpenses)} danger={totals.totalExpenses > 0} />
+            </View>
+
+            <View style={styles.grid}>
+              <Metric title="Efectivo" value={formatMoney(totals.totalCash)} />
+              <Metric title="Transferencia" value={formatMoney(totals.totalTransfer)} />
+            </View>
+
+            <View style={styles.grid}>
+              <Metric title="Caja neta" value={formatMoney(totals.netCash)} danger={totals.netCash < 0} />
+              <Metric title="Estimado hoy" value={formatMoney(totals.estimatedToday)} danger={totals.estimatedToday > 0} />
+            </View>
+
+            <View style={styles.grid}>
+              <Metric title="Prestado" value={formatMoney(totals.totalLoaned)} />
+              <Metric title="Pendiente" value={formatMoney(totals.totalPending)} danger={totals.totalPending > 0} />
+            </View>
+
+            <View style={styles.grid}>
+              <Metric title="Creditos activos" value={String(totals.activeCredits)} />
+              <Metric title="Creditos en mora" value={String(totals.overdueCredits)} danger={totals.overdueCredits > 0} />
+            </View>
+
+            <View style={styles.grid}>
+              <Metric title="Clientes al dia" value={String(totals.clientsOk)} />
+              <Metric title="Clientes en mora" value={String(totals.clientsMora)} danger={totals.clientsMora > 0} />
+            </View>
+
+            <Card style={styles.infoCard}>
+              <Text style={styles.infoTitle}>Filtros aplicados</Text>
+              <Text style={styles.infoText}>Periodo: {startDate} a {endDate}</Text>
+              <Text style={styles.infoText}>Ruta: {selectedRoute?.nombre || 'Todas'}</Text>
+              <Text style={styles.infoText}>Cobrador: {selectedCollector?.email || 'Todos'}</Text>
+              <Text style={styles.infoText}>Metodo: {method || 'Todos'}</Text>
+              <Text style={styles.infoText}>Estado credito: {creditStatus || 'Todos'}</Text>
+            </Card>
+          </>
+        ) : null}
+
+        {tab === 'pagos' ? (
+          filteredPayments.length === 0 ? (
+            <EmptyState title="Sin pagos" message="No hay pagos con estos filtros." />
+          ) : (
+            filteredPayments.map((payment) => (
+              <Card key={payment.id} style={styles.itemCard}>
+                <View style={styles.itemHeader}>
+                  <View style={styles.itemInfo}>
+                    <Text style={styles.itemTitle}>{getClientName(payment.clienteId)}</Text>
+                    <Text style={styles.meta}>Valor: {formatMoney(payment.valorPagado)}</Text>
+                    <Text style={styles.meta}>Metodo: {payment.metodoPago}</Text>
+                    <Text style={styles.meta}>Fecha: {payment.fechaPago}</Text>
+                    <Text style={styles.meta}>Hora: {payment.fechaHoraPago || payment.createdAt}</Text>
+                    <Text style={styles.meta}>Cobrador: {payment.usuarioEmail}</Text>
+                    <Text style={styles.meta}>Nota: {payment.observacion || 'Sin nota'}</Text>
+                  </View>
+                  <StatusBadge type={payment.estado === 'editado' ? 'warning' : 'success'} label={payment.estado} />
+                </View>
+              </Card>
+            ))
+          )
+        ) : null}
+
+        {tab === 'gastos' ? (
+          filteredExpenses.length === 0 ? (
+            <EmptyState title="Sin gastos" message="No hay gastos con estos filtros." />
+          ) : (
+            filteredExpenses.map((expense) => {
+              const data = expense as typeof expense & {
+                routeName?: string;
+                metodoPago?: string;
+                nota?: string;
+              };
+
+              return (
+                <Card key={expense.id} style={styles.itemCard}>
+                  <Text style={styles.itemTitle}>{expense.descripcion}</Text>
+                  <Text style={styles.meta}>Valor: {formatMoney(expense.valor)}</Text>
+                  <Text style={styles.meta}>Fecha: {expense.fecha}</Text>
+                  <Text style={styles.meta}>Ruta: {data.routeName || selectedRoute?.nombre || 'Sin ruta'}</Text>
+                  <Text style={styles.meta}>Metodo: {data.metodoPago || 'No registrado'}</Text>
+                  <Text style={styles.meta}>Cobrador: {expense.createdBy || 'No registrado'}</Text>
+                  <Text style={styles.meta}>Nota: {data.nota || 'Sin nota'}</Text>
+                </Card>
+              );
+            })
+          )
+        ) : null}
+
+        {tab === 'creditos' ? (
+          filteredCredits.length === 0 ? (
+            <EmptyState title="Sin creditos" message="No hay creditos con estos filtros." />
+          ) : (
+            filteredCredits.map((credit) => {
+              const totalPaid = creditPaymentMap.get(credit.id) || 0;
+              const installments = buildInstallments(credit, payments, todayKey());
+              const paidInstallments = installments.filter((item) => item.estado === 'pagada').length;
+              const overdueInstallments = installments.filter((item) => item.estado === 'vencida').length;
+              const pendingInstallments = installments.filter((item) => item.pendiente > 0).length;
+
+              return (
+                <Card key={credit.id} style={styles.itemCard}>
+                  <View style={styles.itemHeader}>
+                    <View style={styles.itemInfo}>
+                      <Text style={styles.itemTitle}>{getClientName(credit.clienteId)}</Text>
+                      <Text style={styles.meta}>ID credito: {credit.id}</Text>
+                      <Text style={styles.meta}>Inicio: {credit.fechaInicio}</Text>
+                      <Text style={styles.meta}>Final: {credit.fechaFinal || 'No registrada'}</Text>
+                      <Text style={styles.meta}>Prestado: {formatMoney(credit.valorPrestado)}</Text>
+                      <Text style={styles.meta}>Total a pagar: {formatMoney(credit.valorTotal)}</Text>
+                      <Text style={styles.meta}>Total pagado: {formatMoney(totalPaid)}</Text>
+                      <Text style={styles.meta}>Pendiente: {formatMoney(credit.saldoPendiente)}</Text>
+                      <Text style={styles.meta}>Cuotas: {credit.numeroCuotas}</Text>
+                      <Text style={styles.meta}>Pagadas: {paidInstallments} | Atrasadas: {overdueInstallments} | Pendientes: {pendingInstallments}</Text>
+                    </View>
+                    <StatusBadge type={credit.estado === 'pagado' ? 'success' : credit.estado === 'vencido' || credit.estado === 'anulado' ? 'danger' : 'warning'} label={credit.estado} />
+                  </View>
+                </Card>
+              );
+            })
+          )
+        ) : null}
+
+        {tab === 'clientes' ? (
+          filteredClients.length === 0 ? (
+            <EmptyState title="Sin clientes" message="No hay clientes con estos filtros." />
+          ) : (
+            filteredClients.map((client) => {
+              const clientCredits = credits.filter((credit) => credit.clienteId === client.id && credit.estado !== 'anulado');
+              const clientPending = clientCredits.reduce((total, credit) => total + credit.saldoPendiente, 0);
+
+              return (
+                <Card key={client.id} style={styles.itemCard}>
+                  <View style={styles.itemHeader}>
+                    <View style={styles.itemInfo}>
+                      <Text style={styles.itemTitle}>{client.nombre}</Text>
+                      <Text style={styles.meta}>Telefono: {client.telefono}</Text>
+                      <Text style={styles.meta}>Direccion: {client.direccion}</Text>
+                      <Text style={styles.meta}>Ruta: {client.routeName || 'Sin ruta'}</Text>
+                      <Text style={styles.meta}>Cobrador: {client.assignedToEmail || 'Sin asignar'}</Text>
+                      <Text style={styles.meta}>Saldo pendiente: {formatMoney(clientPending)}</Text>
+                    </View>
+                    <StatusBadge type={client.estado === 'al-dia' ? 'success' : 'danger'} label={client.estado === 'al-dia' ? 'Al dia' : 'En mora'} />
+                  </View>
+                </Card>
+              );
+            })
+          )
+        ) : null}
+
+        {tab === 'caja' ? (
+          <>
+            {routeSummary.map((item) => (
+              <Card key={item.route.id} style={styles.itemCard}>
+                <Text style={styles.itemTitle}>{item.route.nombre}</Text>
+                <Text style={styles.meta}>Clientes: {item.clients}</Text>
+                <Text style={styles.meta}>Pagos: {formatMoney(item.paid)}</Text>
+                <Text style={styles.meta}>Gastos: {formatMoney(item.spent)}</Text>
+                <Text style={styles.meta}>Caja neta: {formatMoney(item.net)}</Text>
+                <Text style={styles.meta}>Pendiente por cobrar: {formatMoney(item.pending)}</Text>
+              </Card>
+            ))}
+
+            {filteredCashClosings.map((closing) => (
+              <Card key={closing.id} style={styles.itemCard}>
+                <Text style={styles.itemTitle}>Cierre de caja</Text>
+                <Text style={styles.meta}>Fecha: {closing.fecha}</Text>
+                <Text style={styles.meta}>Cobrador: {closing.usuarioEmail}</Text>
+                <Text style={styles.meta}>Caja esperada: {formatMoney(closing.cajaEsperada)}</Text>
+                <Text style={styles.meta}>Caja entregada: {formatMoney(closing.cajaEntregada)}</Text>
+                <Text style={styles.meta}>Diferencia: {formatMoney(closing.diferencia)}</Text>
+              </Card>
+            ))}
+          </>
+        ) : null}
+
+        <Button title="Exportar reporte para Excel" onPress={exportCurrentReport} style={styles.exportButton} />
       </Screen>
+
       <BottomNav />
     </View>
+  );
+}
+
+function Chip({
+  label,
+  selected,
+  onPress
+}: {
+  label: string;
+  selected: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable style={[styles.chip, selected ? styles.chipSelected : null]} onPress={onPress}>
+      <Text style={[styles.chipText, selected ? styles.chipTextSelected : null]}>{label}</Text>
+    </Pressable>
+  );
+}
+
+function Tab({
+  label,
+  value,
+  current,
+  onPress
+}: {
+  label: string;
+  value: ReportTab;
+  current: ReportTab;
+  onPress: (value: ReportTab) => void;
+}) {
+  return (
+    <Chip label={label} selected={value === current} onPress={() => onPress(value)} />
+  );
+}
+
+function Metric({
+  title,
+  value,
+  danger = false
+}: {
+  title: string;
+  value: string;
+  danger?: boolean;
+}) {
+  return (
+    <Card style={styles.metricCard}>
+      <Text style={styles.metricTitle}>{title}</Text>
+      <Text style={[styles.metricValue, danger ? styles.danger : null]}>{value}</Text>
+    </Card>
   );
 }
 
@@ -372,50 +829,119 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background
   },
-  infoCard: {
-    backgroundColor: colors.primarySoft,
-    marginBottom: 14
+  heroCard: {
+    backgroundColor: colors.primary,
+    marginBottom: 12
   },
-  infoTitle: {
-    color: colors.primary,
-    fontSize: 16,
+  heroTitle: {
+    color: '#FFFFFF',
+    fontSize: 21,
     fontWeight: '900'
   },
-  infoText: {
-    color: colors.muted,
+  heroText: {
+    color: '#FFFFFF',
+    opacity: 0.9,
     marginTop: 6,
     lineHeight: 20,
     fontWeight: '700'
   },
-  businessText: {
-    color: colors.primary,
+  label: {
+    color: colors.text,
     fontWeight: '900',
-    marginTop: 10
+    marginBottom: 8
   },
-  sectionCard: {
+  chips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
     marginBottom: 14
   },
-  sectionTitle: {
-    color: colors.text,
+  tabs: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 14
+  },
+  chip: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: '#FFFFFF'
+  },
+  chipSelected: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primarySoft
+  },
+  chipText: {
+    color: colors.muted,
+    fontWeight: '900',
+    fontSize: 12
+  },
+  chipTextSelected: {
+    color: colors.primary
+  },
+  grid: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 10
+  },
+  metricCard: {
+    flex: 1
+  },
+  metricTitle: {
+    color: colors.muted,
+    fontWeight: '800',
+    fontSize: 12
+  },
+  metricValue: {
+    color: colors.primary,
+    fontWeight: '900',
     fontSize: 17,
-    fontWeight: '900',
-    marginBottom: 10
+    marginTop: 6
   },
-  button: {
-    marginBottom: 10
+  danger: {
+    color: colors.danger
   },
-  warningCard: {
-    backgroundColor: '#FFF8E1'
+  infoCard: {
+    marginBottom: 12
   },
-  warningTitle: {
+  infoTitle: {
     color: colors.text,
     fontWeight: '900',
-    fontSize: 16
+    fontSize: 16,
+    marginBottom: 6
   },
-  warningText: {
+  infoText: {
     color: colors.muted,
     fontWeight: '700',
-    lineHeight: 20,
-    marginTop: 6
+    marginTop: 5
+  },
+  itemCard: {
+    marginBottom: 12
+  },
+  itemHeader: {
+    flexDirection: 'row',
+    gap: 10,
+    alignItems: 'flex-start'
+  },
+  itemInfo: {
+    flex: 1
+  },
+  itemTitle: {
+    color: colors.text,
+    fontSize: 16,
+    fontWeight: '900'
+  },
+  meta: {
+    color: colors.muted,
+    fontWeight: '700',
+    marginTop: 5,
+    lineHeight: 20
+  },
+  exportButton: {
+    marginTop: 10,
+    marginBottom: 12
   }
 });

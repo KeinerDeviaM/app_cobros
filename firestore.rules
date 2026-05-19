@@ -23,8 +23,16 @@ service cloud.firestore {
       return isActive() && userDoc().data.role == 'admin';
     }
 
+    function isSupervisor() {
+      return isActive() && userDoc().data.role == 'supervisor';
+    }
+
+    function canManagePayments() {
+      return isAdmin() || isSupervisor();
+    }
+
     function isCollector() {
-      return isActive() && userDoc().data.role == 'cobrador';
+      return isActive() && (userDoc().data.role == 'cobrador');
     }
 
     function isOwner(uid) {
@@ -58,7 +66,7 @@ service cloud.firestore {
 
       allow update: if isAdmin()
         && !(isOwner(userId) && request.resource.data.activo == false)
-        && request.resource.data.role in ['admin', 'cobrador'];
+        && request.resource.data.role in ['admin', 'supervisor', 'cobrador'];
 
       allow delete: if false;
     }
@@ -120,7 +128,7 @@ service cloud.firestore {
         && request.resource.data.valorPagado > 0
       );
 
-      allow update: if isAdmin();
+      allow update: if canManagePayments();
 
       allow delete: if false;
     }
@@ -178,7 +186,7 @@ service cloud.firestore {
         && request.resource.data.usuarioUid == request.auth.uid
       );
 
-      allow update: if isAdmin();
+      allow update: if canManagePayments();
 
       allow delete: if false;
     }
@@ -192,7 +200,7 @@ service cloud.firestore {
         && request.resource.data.usuarioUid == request.auth.uid
       );
 
-      allow update: if isAdmin();
+      allow update: if canManagePayments();
 
       allow delete: if false;
     }

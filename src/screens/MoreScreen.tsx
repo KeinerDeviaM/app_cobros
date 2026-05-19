@@ -9,30 +9,31 @@ import { useApp } from '../state/AppContext';
 import { colors } from '../theme/colors';
 
 export function MoreScreen() {
-  const { session, navigate, logout, isAdmin, businessSettings } = useApp();
+  const { session, navigate, logout, isAdmin, canManagePayments, businessSettings } = useApp();
 
   return (
     <View style={styles.root}>
-      <TopBar title="Más opciones" rightText="⚙️" />
+      <TopBar title="MÃ¡s opciones" rightText="âš™ï¸" />
 
       <Screen>
         <Card style={styles.menuCard}>
           <Button title="Ayuda / Manual" variant="secondary" onPress={() => navigate('help')} style={styles.menuButton} />
               <Button title="Modo offline" variant="secondary" onPress={() => navigate('offlineStatus')} style={styles.menuButton} />
               <Button title="Recordatorios" variant="secondary" onPress={() => navigate('reminders')} style={styles.menuButton} />
+              <Button title="Control operativo" variant="secondary" onPress={() => navigate('operationalControl')} style={styles.menuButton} />
               <Button title="Checklist APK" variant="secondary" onPress={() => navigate('preApkChecklist')} style={styles.menuButton} />
         </Card>
         <Card style={styles.profileCard}>
-          <Text style={styles.avatar}>👤</Text>
+          <Text style={styles.avatar}>ðŸ‘¤</Text>
 
           <View style={styles.profileInfo}>
             <Text style={styles.name}>{session.email}</Text>
-            <Text style={styles.role}>{isAdmin ? 'Administrador' : 'Cobrador'} · Firebase Auth</Text>
+            <Text style={styles.role}>{isAdmin ? 'Administrador' : 'Cobrador'} Â· Firebase Auth</Text>
             <Text style={styles.business}>{businessSettings.businessName}</Text>
           </View>
         </Card>
 
-        <Text style={styles.sectionTitle}>Operación diaria</Text>
+        <Text style={styles.sectionTitle}>OperaciÃ³n diaria</Text>
         <Card style={styles.menuCard}>
           <Button title="Registrar pago" variant="secondary" onPress={() => navigate('registerPayment')} style={styles.menuButton} />
           <Button title="Visitas de hoy" variant="secondary" onPress={() => navigate('visits')} style={styles.menuButton} />
@@ -42,16 +43,16 @@ export function MoreScreen() {
           <Button title="Caja diaria" variant="secondary" onPress={() => navigate('dailyCash')} style={styles.menuButton} />
         </Card>
 
-        {isAdmin ? (
+        {(isAdmin || canManagePayments) ? (
           <>
-            <Text style={styles.sectionTitle}>Administración</Text>
+            <Text style={styles.sectionTitle}>AdministraciÃ³n</Text>
             <Card style={styles.menuCard}>
               <Button title="Reportes" variant="secondary" onPress={() => navigate('reports')} style={styles.menuButton} />
               <Button title="Indicadores avanzados" variant="secondary" onPress={() => navigate('advancedAnalytics')} style={styles.menuButton} />
               <Button title="Exportar reportes" variant="secondary" onPress={() => navigate('exportReports')} style={styles.menuButton} />
-              <Button title="Gestión de usuarios" variant="secondary" onPress={() => navigate('users')} style={styles.menuButton} />
-              <Button title="Auditoría" variant="secondary" onPress={() => navigate('audit')} style={styles.menuButton} />
-              <Button title="Configuración del negocio" variant="secondary" onPress={() => navigate('businessSettings')} style={styles.menuButton} />
+              <Button title="GestiÃ³n de usuarios" variant="secondary" onPress={() => navigate('users')} style={styles.menuButton} />
+              <Button title="AuditorÃ­a" variant="secondary" onPress={() => navigate('audit')} style={styles.menuButton} />
+              <Button title="ConfiguraciÃ³n del negocio" variant="secondary" onPress={() => navigate('businessSettings')} style={styles.menuButton} />
               <Button title="Checklist antes del APK" variant="secondary" onPress={() => navigate('preApkChecklist')} style={styles.menuButton} />
             </Card>
           </>
@@ -59,13 +60,13 @@ export function MoreScreen() {
 
         <Text style={styles.sectionTitle}>Estado del proyecto</Text>
         <Card>
-          <Text style={styles.stateTitle}>Versión pre-APK</Text>
+          <Text style={styles.stateTitle}>VersiÃ³n pre-APK</Text>
           <Text style={styles.stateText}>
-            La app ya incluye clientes, créditos, pagos, recibos, caja, cierres, rutas, visitas, reportes, auditoría, configuración y exportaciones CSV.
+            La app ya incluye clientes, crÃ©ditos, pagos, recibos, caja, cierres, rutas, visitas, reportes, auditorÃ­a, configuraciÃ³n y exportaciones CSV.
           </Text>
         </Card>
 
-        <Button title="Cerrar sesión" variant="danger" onPress={logout} style={styles.logout} />
+        <Button title="Cerrar sesiÃ³n" variant="danger" onPress={logout} style={styles.logout} />
       </Screen>
 
       <BottomNav />

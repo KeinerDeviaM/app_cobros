@@ -9,6 +9,7 @@ export type ScreenName =
   | 'help'
   | 'offlineStatus'
   | 'reminders'
+  | 'operationalControl'
   | 'editClient'
   | 'credits'
   | 'creditDetail'
@@ -18,6 +19,7 @@ export type ScreenName =
   | 'editCredit'
   | 'payments'
   | 'paymentReceipt'
+  | 'editPayment'
   | 'newClient'
   | 'newCredit'
   | 'registerPayment'
@@ -33,13 +35,13 @@ export type ScreenName =
   | 'preApkChecklist'
   | 'more';
 
-export type UserRole = 'admin' | 'cobrador';
+export type UserRole = 'admin' | 'supervisor' | 'cobrador';
 
 export type ClientStatus = 'al-dia' | 'en-mora';
 export type CreditStatus = 'activo' | 'pagado' | 'vencido' | 'anulado';
-export type Frequency = 'Diaria' | 'Semanal' | 'Quincenal' | 'Mensual';
+export type Frequency = 'Diaria' | 'Semanal' | 'Quincenal' | 'Mensual' | 'Personalizada';
 export type PaymentMethod = 'Efectivo' | 'Transferencia' | 'Nequi' | 'Daviplata' | 'Otro';
-export type PaymentStatus = 'activo' | 'anulado';
+export type PaymentStatus = 'activo' | 'editado' | 'anulado';
 export type ExpenseStatus = 'activo' | 'anulado';
 export type VisitStatus = 'pendiente' | 'visitado' | 'pago' | 'no-pago' | 'no-estaba' | 'promesa';
 export type PromiseStatus = 'pendiente' | 'cumplida' | 'incumplida' | 'cancelada';
@@ -98,6 +100,19 @@ export interface Credit {
   frecuencia: Frequency;
   estado: CreditStatus;
   fechaInicio: string;
+  fechaFinal?: string;
+  porcentaje?: number;
+  tipoCobro?: Frequency;
+  nota?: string;
+  codeudorTiene?: boolean;
+  codeudorTipo?: 'cliente' | 'nuevo';
+  codeudorClienteId?: string;
+  codeudorNombreCompleto?: string;
+  codeudorSobrenombre?: string;
+  codeudorCpf?: string;
+  codeudorDireccion?: string;
+  codeudorTelefono?: string;
+  codeudorNota?: string;
   createdAt: string;
   createdBy?: string;
   updatedAt?: string;
@@ -117,6 +132,13 @@ export interface Payment {
   valorPagado: number;
   metodoPago: PaymentMethod;
   fechaPago: string;
+  saldoAnterior?: number;
+  saldoNuevo?: number;
+  fechaHoraPago?: string;
+  editadoPor?: string;
+  editadoEn?: string;
+  motivoEdicion?: string;
+  valorOriginal?: number;
   observacion: string;
   estado: PaymentStatus;
   createdAt: string;

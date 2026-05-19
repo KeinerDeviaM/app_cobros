@@ -20,6 +20,7 @@ import { EditCreditScreen } from './src/screens/EditCreditScreen';
 import { NewCreditScreen } from './src/screens/NewCreditScreen';
 import { PaymentsScreen } from './src/screens/PaymentsScreen';
 import { PaymentReceiptScreen } from './src/screens/PaymentReceiptScreen';
+import { EditPaymentScreen } from './src/screens/EditPaymentScreen';
 import { RegisterPaymentScreen } from './src/screens/RegisterPaymentScreen';
 import { DailyCashScreen } from './src/screens/DailyCashScreen';
 import { EditExpenseScreen } from './src/screens/EditExpenseScreen';
@@ -35,6 +36,7 @@ import { MoreScreen } from './src/screens/MoreScreen';
 import { HelpScreen } from './src/screens/HelpScreen';
 import { OfflineStatusScreen } from './src/screens/OfflineStatusScreen';
 import { RemindersScreen } from './src/screens/RemindersScreen';
+import { OperationalControlScreen } from './src/screens/OperationalControlScreen';
 import { colors } from './src/theme/colors';
 
 function LoadingScreen() {
@@ -47,7 +49,7 @@ function LoadingScreen() {
 }
 
 function Root() {
-  const { session, currentScreen, authLoading, isAdmin } = useApp();
+  const { session, currentScreen, authLoading, isAdmin, canManagePayments } = useApp();
 
   if (authLoading) return <LoadingScreen />;
   if (!session.loggedIn) return <LoginScreen />;
@@ -102,6 +104,8 @@ function Root() {
       return <PaymentsScreen />;
     case 'paymentReceipt':
       return <PaymentReceiptScreen />;
+    case 'editPayment':
+      return <EditPaymentScreen />;
     case 'registerPayment':
       return <RegisterPaymentScreen />;
     case 'dailyCash':
@@ -132,6 +136,8 @@ function Root() {
       return <OfflineStatusScreen />;
     case 'reminders':
       return <RemindersScreen />;
+    case 'operationalControl':
+      return <OperationalControlScreen />;
     case 'dashboard':
     default:
       return <DashboardScreen />;
