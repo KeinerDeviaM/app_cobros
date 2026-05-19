@@ -7,12 +7,12 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function userDoc() {
-      return get(/databases/$(database)/documents/usuarios/$(request.auth.uid));
-    }
-
     function userExists() {
       return signedIn() && exists(/databases/$(database)/documents/usuarios/$(request.auth.uid));
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/usuarios/$(request.auth.uid));
     }
 
     function isActive() {
@@ -27,200 +27,315 @@ service cloud.firestore {
       return isActive() && userDoc().data.role == 'supervisor';
     }
 
+    function isCollector() {
+      return isActive() && userDoc().data.role == 'cobrador';
+    }
+
     function canManagePayments() {
       return isAdmin() || isSupervisor();
     }
 
-    function isCollector() {
-      return isActive() && (userDoc().data.role == 'cobrador');
+    function isOwner(userId) {
+      return signedIn() && request.auth.uid == userId;
     }
 
-    function isOwner(uid) {
-      return signedIn() && request.auth.uid == uid;
+    function validRole() {
+      return request.resource.data.role in ['admin', 'supervisor', 'cobrador'];
     }
 
-    function isAssignedToMe() {
+    function assignedToMeExisting() {
       return signedIn() && resource.data.assignedToUid == request.auth.uid;
     }
 
-    function newAssignedToMe() {
+    function assignedToMeNew() {
       return signedIn() && request.resource.data.assignedToUid == request.auth.uid;
     }
 
-    function isCreatedByMe() {
-      return signedIn() && resource.data.usuarioUid == request.auth.uid;
+    function createdByMeExisting() {
+      return signedIn()
+        && (
+          resource.data.usuarioUid == request.auth.uid
+          || resource.data.createdByUid == request.auth.uid
+          || resource.data.createdBy == userDoc().data.email
+          || resource.data.usuarioEmail == userDoc().data.email
+        );
     }
 
-    function newCreatedByMe() {
-      return signedIn() && request.resource.data.usuarioUid == request.auth.uid;
+    function createdByMeNew() {
+      return signedIn()
+        && (
+          request.resource.data.usuarioUid == request.auth.uid
+          || request.resource.data.createdByUid == request.auth.uid
+          || request.resource.data.createdBy == userDoc().data.email
+          || request.resource.data.usuarioEmail == userDoc().data.email
+        );
     }
 
-    function hasValidMoney(fieldName) {
-      return request.resource.data[fieldName] is number && request.resource.data[fieldName] >= 0;
+    function positiveNumber(fieldName) {
+      return request.resource.data[fieldName] is number
+        && request.resource.data[fieldName] > 0;
+    }
+
+    function validNumber(fieldName) {
+      return request.resource.data[fieldName] is number
+        && request.resource.data[fieldName] >= 0;
+    }
+
+    function validPaymentStatus() {
+      return request.resource.data.estado in ['activo', 'editado', 'anulado'];
+    }
+
+    function validCreditStatus() {
+      return request.resource.data.estado in ['activo', 'pagado', 'vencido', 'anulado'];
+    }
+
+    function validExpenseStatus() {
+      return request.resource.data.estado in ['activo', 'anulado'];
     }
 
     match /usuarios/{userId} {
-      allow read: if isAdmin() || isOwner(userId);
+      allow read: if isActive();
 
-      allow create: if signedIn() && isOwner(userId);
+      allow create: if isAdmin()
+        || (
+          signedIn()
+          && isOwner(userId)
+          && request.resource.data.role == 'cobrador'
+          && request.resource.data.activo == true
+        );
 
       allow update: if isAdmin()
-        && !(isOwner(userId) && request.resource.data.activo == false)
-        && request.resource.data.role in ['admin', 'supervisor', 'cobrador'];
+        && validRole()
+        && !(isOwner(userId) && request.resource.data.activo == false);
 
       allow delete: if false;
     }
 
     match /clientes/{clienteId} {
-      allow read: if isAdmin() || isAssignedToMe();
+      allow read: if isAdmin()
+        || isSupervisor()
+        || assignedToMeExisting()
+        || createdByMeExisting();
 
-      allow create: if isAdmin() || (
-        isCollector()
-        && newAssignedToMe()
-        && request.resource.data.nombre is string
-        && request.resource.data.telefono is string
-      );
+      allow create: if isAdmin()
+        || isSupervisor()
+        || (
+          isCollector()
+          && (
+            assignedToMeNew()
+            || createdByMeNew()
+          )
+          && request.resource.data.nombre is string
+          && request.resource.data.telefono is string
+        );
 
-      allow update: if isAdmin() || (
-        isCollector()
-        && isAssignedToMe()
-        && newAssignedToMe()
-      );
+      allow update: if isAdmin()
+        || isSupervisor()
+        || (
+          isCollector()
+          && (
+            assignedToMeExisting()
+            || createdByMeExisting()
+          )
+          && (
+            assignedToMeNew()
+            || createdByMeNew()
+          )
+        );
 
       allow delete: if false;
     }
 
     match /creditos/{creditoId} {
-      allow read: if isAdmin() || isAssignedToMe();
+      allow read: if isAdmin()
+        || isSupervisor()
+        || assignedToMeExisting()
+        || createdByMeExisting();
 
-      allow create: if isAdmin() || (
-        isCollector()
-        && newAssignedToMe()
-        && hasValidMoney('valorPrestado')
-        && hasValidMoney('valorTotal')
-        && hasValidMoney('saldoPendiente')
-        && request.resource.data.numeroCuotas is number
-        && request.resource.data.numeroCuotas > 0
-      );
+      allow create: if isAdmin()
+        || isSupervisor()
+        || (
+          isCollector()
+          && assignedToMeNew()
+          && positiveNumber('valorPrestado')
+          && positiveNumber('valorTotal')
+          && validNumber('saldoPendiente')
+          && request.resource.data.numeroCuotas is number
+          && request.resource.data.numeroCuotas > 0
+        );
 
-      allow update: if isAdmin() || (
-        isCollector()
-        && isAssignedToMe()
-        && newAssignedToMe()
-        && hasValidMoney('saldoPendiente')
-      );
+      allow update: if isAdmin()
+        || isSupervisor()
+        || (
+          isCollector()
+          && assignedToMeExisting()
+          && assignedToMeNew()
+          && validNumber('saldoPendiente')
+          && validCreditStatus()
+        );
 
       allow delete: if false;
     }
 
     match /pagos/{pagoId} {
       allow read: if isAdmin()
-        || resource.data.assignedToUid == request.auth.uid
-        || resource.data.usuarioUid == request.auth.uid;
+        || isSupervisor()
+        || assignedToMeExisting()
+        || createdByMeExisting();
 
-      allow create: if isAdmin() || (
-        isCollector()
-        && (
-          request.resource.data.assignedToUid == request.auth.uid
-          || request.resource.data.usuarioUid == request.auth.uid
-        )
-        && hasValidMoney('valorPagado')
-        && request.resource.data.valorPagado > 0
-      );
+      allow create: if isAdmin()
+        || isSupervisor()
+        || (
+          isCollector()
+          && positiveNumber('valorPagado')
+          && (
+            assignedToMeNew()
+            || createdByMeNew()
+          )
+        );
 
-      allow update: if canManagePayments();
+      allow update: if canManagePayments()
+        && positiveNumber('valorPagado')
+        && validPaymentStatus();
 
       allow delete: if false;
     }
 
     match /gastos/{gastoId} {
       allow read: if isAdmin()
-        || resource.data.usuarioUid == request.auth.uid
-        || resource.data.createdByUid == request.auth.uid;
+        || isSupervisor()
+        || createdByMeExisting();
 
-      allow create: if isAdmin() || (
-        isCollector()
-        && (
-          request.resource.data.usuarioUid == request.auth.uid
-          || request.resource.data.createdByUid == request.auth.uid
-        )
-        && hasValidMoney('valor')
-      );
+      allow create: if isAdmin()
+        || isSupervisor()
+        || (
+          isCollector()
+          && positiveNumber('valor')
+          && createdByMeNew()
+        );
 
       allow update: if isAdmin()
-        || resource.data.usuarioUid == request.auth.uid
-        || resource.data.createdByUid == request.auth.uid;
+        || isSupervisor()
+        || (
+          isCollector()
+          && createdByMeExisting()
+          && validExpenseStatus()
+        );
 
       allow delete: if false;
     }
 
     match /rutas/{rutaId} {
       allow read: if isActive();
-      allow create, update: if isAdmin();
+
+      allow create, update: if isAdmin()
+        || isSupervisor();
+
       allow delete: if false;
     }
 
     match /visitas/{visitaId} {
-      allow read: if isAdmin() || isAssignedToMe();
+      allow read: if isAdmin()
+        || isSupervisor()
+        || assignedToMeExisting()
+        || createdByMeExisting();
 
-      allow create: if isAdmin() || (
-        isCollector()
-        && newAssignedToMe()
-      );
+      allow create: if isAdmin()
+        || isSupervisor()
+        || (
+          isCollector()
+          && (
+            assignedToMeNew()
+            || createdByMeNew()
+          )
+        );
 
-      allow update: if isAdmin() || (
-        isCollector()
-        && isAssignedToMe()
-        && newAssignedToMe()
-      );
+      allow update: if isAdmin()
+        || isSupervisor()
+        || (
+          isCollector()
+          && (
+            assignedToMeExisting()
+            || createdByMeExisting()
+          )
+          && (
+            assignedToMeNew()
+            || createdByMeNew()
+          )
+        );
 
       allow delete: if false;
     }
 
     match /cierresCaja/{cierreId} {
       allow read: if isAdmin()
-        || resource.data.usuarioUid == request.auth.uid;
+        || isSupervisor()
+        || createdByMeExisting();
 
-      allow create: if isAdmin() || (
-        isCollector()
-        && request.resource.data.usuarioUid == request.auth.uid
-      );
+      allow create: if isAdmin()
+        || isSupervisor()
+        || (
+          isCollector()
+          && createdByMeNew()
+        );
 
-      allow update: if canManagePayments();
+      allow update: if isAdmin()
+        || isSupervisor();
 
       allow delete: if false;
     }
 
     match /cashClosings/{cierreId} {
       allow read: if isAdmin()
-        || resource.data.usuarioUid == request.auth.uid;
+        || isSupervisor()
+        || createdByMeExisting();
 
-      allow create: if isAdmin() || (
-        isCollector()
-        && request.resource.data.usuarioUid == request.auth.uid
-      );
+      allow create: if isAdmin()
+        || isSupervisor()
+        || (
+          isCollector()
+          && createdByMeNew()
+        );
 
-      allow update: if canManagePayments();
+      allow update: if isAdmin()
+        || isSupervisor();
 
       allow delete: if false;
     }
 
     match /configuracion/{configId} {
       allow read: if isActive();
+
       allow create, update: if isAdmin();
+
       allow delete: if false;
     }
 
     match /businessSettings/{configId} {
       allow read: if isActive();
+
       allow create, update: if isAdmin();
+
       allow delete: if false;
     }
 
     match /auditoria/{auditId} {
-      allow read: if isAdmin();
+      allow read: if isAdmin()
+        || isSupervisor();
 
       allow create: if isActive();
+
+      allow update, delete: if false;
+    }
+
+    match /backups/{backupId} {
+      allow read, create: if isAdmin();
+
+      allow update, delete: if false;
+    }
+
+    match /imports/{importId} {
+      allow read, create: if isAdmin();
 
       allow update, delete: if false;
     }
