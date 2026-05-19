@@ -13,7 +13,7 @@ export function MoreScreen() {
 
   return (
     <View style={styles.root}>
-      <TopBar title="MÃ¡s opciones" rightText="âš™ï¸" />
+      <TopBar title="MÃƒÂ¡s opciones" rightText="Ã¢Å¡â„¢Ã¯Â¸Â" />
 
       <Screen>
         <Card style={styles.menuCard}>
@@ -24,16 +24,16 @@ export function MoreScreen() {
               <Button title="Checklist APK" variant="secondary" onPress={() => navigate('preApkChecklist')} style={styles.menuButton} />
         </Card>
         <Card style={styles.profileCard}>
-          <Text style={styles.avatar}>ðŸ‘¤</Text>
+          <Text style={styles.avatar}>Ã°Å¸â€˜Â¤</Text>
 
           <View style={styles.profileInfo}>
             <Text style={styles.name}>{session.email}</Text>
-            <Text style={styles.role}>{isAdmin ? 'Administrador' : 'Cobrador'} Â· Firebase Auth</Text>
+            <Text style={styles.role}>{isAdmin ? 'Administrador' : 'Cobrador'} Ã‚Â· Firebase Auth</Text>
             <Text style={styles.business}>{businessSettings.businessName}</Text>
           </View>
         </Card>
 
-        <Text style={styles.sectionTitle}>OperaciÃ³n diaria</Text>
+        <Text style={styles.sectionTitle}>OperaciÃƒÂ³n diaria</Text>
         <Card style={styles.menuCard}>
           <Button title="Registrar pago" variant="secondary" onPress={() => navigate('registerPayment')} style={styles.menuButton} />
           <Button title="Visitas de hoy" variant="secondary" onPress={() => navigate('visits')} style={styles.menuButton} />
@@ -45,14 +45,15 @@ export function MoreScreen() {
 
         {(isAdmin || canManagePayments) ? (
           <>
-            <Text style={styles.sectionTitle}>AdministraciÃ³n</Text>
+            <Text style={styles.sectionTitle}>AdministraciÃƒÂ³n</Text>
             <Card style={styles.menuCard}>
               <Button title="Reportes" variant="secondary" onPress={() => navigate('reports')} style={styles.menuButton} />
               <Button title="Indicadores avanzados" variant="secondary" onPress={() => navigate('advancedAnalytics')} style={styles.menuButton} />
               <Button title="Exportar reportes" variant="secondary" onPress={() => navigate('exportReports')} style={styles.menuButton} />
-              <Button title="GestiÃ³n de usuarios" variant="secondary" onPress={() => navigate('users')} style={styles.menuButton} />
-              <Button title="AuditorÃ­a" variant="secondary" onPress={() => navigate('audit')} style={styles.menuButton} />
-              <Button title="ConfiguraciÃ³n del negocio" variant="secondary" onPress={() => navigate('businessSettings')} style={styles.menuButton} />
+              <Button title="Importar clientes" variant="secondary" onPress={() => navigate('importClients')} style={styles.menuButton} />
+              <Button title="GestiÃƒÂ³n de usuarios" variant="secondary" onPress={() => navigate('users')} style={styles.menuButton} />
+              <Button title="AuditorÃƒÂ­a" variant="secondary" onPress={() => navigate('audit')} style={styles.menuButton} />
+              <Button title="ConfiguraciÃƒÂ³n del negocio" variant="secondary" onPress={() => navigate('businessSettings')} style={styles.menuButton} />
               <Button title="Checklist antes del APK" variant="secondary" onPress={() => navigate('preApkChecklist')} style={styles.menuButton} />
             </Card>
           </>
@@ -60,13 +61,13 @@ export function MoreScreen() {
 
         <Text style={styles.sectionTitle}>Estado del proyecto</Text>
         <Card>
-          <Text style={styles.stateTitle}>VersiÃ³n pre-APK</Text>
+          <Text style={styles.stateTitle}>VersiÃƒÂ³n pre-APK</Text>
           <Text style={styles.stateText}>
-            La app ya incluye clientes, crÃ©ditos, pagos, recibos, caja, cierres, rutas, visitas, reportes, auditorÃ­a, configuraciÃ³n y exportaciones CSV.
+            La app ya incluye clientes, crÃƒÂ©ditos, pagos, recibos, caja, cierres, rutas, visitas, reportes, auditorÃƒÂ­a, configuraciÃƒÂ³n y exportaciones CSV.
           </Text>
         </Card>
 
-        <Button title="Cerrar sesiÃ³n" variant="danger" onPress={logout} style={styles.logout} />
+        <Button title="Cerrar sesiÃƒÂ³n" variant="danger" onPress={logout} style={styles.logout} />
       </Screen>
 
       <BottomNav />

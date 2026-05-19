@@ -6,6 +6,7 @@ export type ScreenName =
   | 'globalSearch'
   | 'advancedAnalytics'
   | 'dataBackup'
+  | 'importClients'
   | 'help'
   | 'offlineStatus'
   | 'reminders'
