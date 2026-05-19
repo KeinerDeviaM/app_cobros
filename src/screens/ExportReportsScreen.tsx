@@ -269,93 +269,30 @@ export function ExportReportsScreen() {
   }, [payments]);
 
   const totals = useMemo(() => {
-    const totalPayments = filteredPayments.reduce((total, payment) => total + payment.valorPagado, 0);
-    const totalCash = filteredPayments
-      .filter((payment) => payment.metodoPago === 'Efectivo')
-      .reduce((total, payment) => total + payment.valorPagado, 0);
-
-    const totalTransfer = filteredPayments
-      .filter((payment) => payment.metodoPago !== 'Efectivo')
-      .reduce((total, payment) => total + payment.valorPagado, 0);
-
-    const totalExpenses = filteredExpenses.reduce((total, expense) => total + expense.valor, 0);
-    const totalLoaned = filteredCredits
-      .filter((credit) => credit.estado !== 'anulado')
-      .reduce((total, credit) => total + credit.valorPrestado, 0);
-
-    const totalToPay = filteredCredits
-      .filter((credit) => credit.estado !== 'anulado')
-      .reduce((total, credit) => total + credit.valorTotal, 0);
-
-    const totalPending = filteredCredits
-      .filter((credit) => credit.estado !== 'anulado')
-      .reduce((total, credit) => total + credit.saldoPendiente, 0);
-
-    const estimatedToday = filteredCredits
-      .filter((credit) => credit.estado !== 'anulado' && credit.estado !== 'pagado')
-      .reduce((total, credit) => {
-        const due = buildInstallments(credit, payments, todayKey()).filter(
-          (item) => item.fecha <= todayKey() && item.pendiente > 0
-        );
-
-        return total + due.reduce((sum, item) => sum + item.pendiente, 0);
-      }, 0);
-
-    return {
-      totalPayments,
-      totalCash,
-      totalTransfer,
-      totalExpenses,
-      netCash: totalPayments - totalExpenses,
-      totalLoaned,
-      totalToPay,
-      totalPending,
-      estimatedToday,
-      activeCredits: filteredCredits.filter((credit) => credit.estado === 'activo').length,
-      paidCredits: filteredCredits.filter((credit) => credit.estado === 'pagado').length,
-      overdueCredits: filteredCredits.filter((credit) => credit.estado === 'vencido').length,
-      canceledCredits: filteredCredits.filter((credit) => credit.estado === 'anulado').length,
-      clientsOk: filteredClients.filter((client) => client.estado === 'al-dia').length,
-      clientsMora: filteredClients.filter((client) => client.estado === 'en-mora').length
-    };
+    return buildTotals(filteredClients, filteredCredits, filteredPayments, filteredExpenses, payments);
   }, [filteredClients, filteredCredits, filteredExpenses, filteredPayments, payments]);
 
+  const allTotals = useMemo(() => {
+    return buildTotals(clients, credits, payments.filter((payment) => payment.estado !== 'anulado'), expenses.filter((expense) => expense.estado !== 'anulado'), payments);
+  }, [clients, credits, expenses, payments]);
+
   const routeSummary = useMemo(() => {
-    return routes.map((route) => {
-      const routeClientList = clients.filter((client) => client.routeId === route.id);
-      const ids = new Set(routeClientList.map((client) => client.id));
-      const routeCredits = credits.filter((credit) => ids.has(credit.clienteId) && credit.estado !== 'anulado');
-      const routePayments = payments.filter((payment) => ids.has(payment.clienteId) && payment.estado !== 'anulado' && inRange(payment.fechaPago, startDate, endDate));
-      const routeExpenses = expenses.filter((expense) => {
-        const data = expense as typeof expense & {
-          routeId?: string;
-          routeName?: string;
-        };
-
-        if (expense.estado === 'anulado') return false;
-        if (!inRange(expense.fecha, startDate, endDate)) return false;
-        if (data.routeId) return data.routeId === route.id;
-        if (data.routeName) return data.routeName === route.nombre;
-
-        return false;
-      });
-
-      const paid = routePayments.reduce((total, payment) => total + payment.valorPagado, 0);
-      const spent = routeExpenses.reduce((total, expense) => total + expense.valor, 0);
-      const pending = routeCredits.reduce((total, credit) => total + credit.saldoPendiente, 0);
-
-      return {
-        route,
-        clients: routeClientList.length,
-        paid,
-        spent,
-        pending,
-        net: paid - spent
-      };
-    });
+    return buildRouteSummary(routes, clients, credits, payments, expenses, startDate, endDate);
   }, [clients, credits, endDate, expenses, payments, routes, startDate]);
 
-  const exportCurrentReport = async () => {
+  const exportReport = async (mode: 'filtered' | 'all') => {
+    const isAll = mode === 'all';
+
+    const reportClients = isAll ? clients : filteredClients;
+    const reportCredits = isAll ? credits : filteredCredits;
+    const reportPayments = isAll ? payments.filter((payment) => payment.estado !== 'anulado') : filteredPayments;
+    const reportExpenses = isAll ? expenses.filter((expense) => expense.estado !== 'anulado') : filteredExpenses;
+    const reportCashClosings = isAll ? cashClosings : filteredCashClosings;
+    const reportRouteSummary = isAll ? buildRouteSummary(routes, clients, credits, payments, expenses, '', '') : routeSummary;
+    const reportTotals = isAll ? allTotals : totals;
+
+    const title = isAll ? 'Reporte general completo' : 'Reporte filtrado';
+
     const headers = [
       'Reporte',
       'Ruta',
@@ -375,82 +312,96 @@ export function ExportReportsScreen() {
       'Nota'
     ];
 
-    const rows: unknown[][] = [
-      ...filteredPayments.map((payment) => {
-        const client = clients.find((item) => item.id === payment.clienteId);
-        const credit = credits.find((item) => item.id === payment.creditoId);
+    const summaryRows: unknown[][] = [
+      [title, '', '', '', '', isAll ? 'Todo el historial' : `${startDate} a ${endDate}`, '', '', reportTotals.totalLoaned, reportTotals.totalToPay, reportTotals.totalPayments, reportTotals.totalPending, reportTotals.totalPayments, reportTotals.totalExpenses, reportTotals.netCash, 'Totales generales'],
+      ['Resumen efectivo', '', '', '', '', isAll ? 'Todo el historial' : `${startDate} a ${endDate}`, 'Efectivo', '', '', '', '', '', reportTotals.totalCash, '', '', 'Total efectivo'],
+      ['Resumen transferencia', '', '', '', '', isAll ? 'Todo el historial' : `${startDate} a ${endDate}`, 'Transferencia/Otros', '', '', '', '', '', reportTotals.totalTransfer, '', '', 'Total transferencia y otros'],
+      ['Resumen clientes', '', `${reportClients.length} clientes`, '', '', '', '', '', '', '', '', '', '', '', '', `Al dia: ${reportTotals.clientsOk} | En mora: ${reportTotals.clientsMora}`],
+      ['Resumen creditos', '', '', '', '', '', '', '', '', '', '', '', '', '', '', `Activos: ${reportTotals.activeCredits} | Pagados: ${reportTotals.paidCredits} | Vencidos: ${reportTotals.overdueCredits} | Anulados: ${reportTotals.canceledCredits}`]
+    ];
 
-        return [
-          'Pago',
-          client?.routeName || selectedRoute?.nombre || '',
-          client?.nombre || getClientName(payment.clienteId),
-          payment.usuarioEmail,
-          payment.creditoId,
-          payment.fechaPago,
-          payment.metodoPago,
-          payment.estado,
-          credit?.valorPrestado || '',
-          credit?.valorTotal || '',
-          '',
-          credit?.saldoPendiente || '',
-          payment.valorPagado,
-          '',
-          '',
-          payment.observacion || ''
-        ];
-      }),
-      ...filteredExpenses.map((expense) => {
-        const data = expense as typeof expense & {
-          routeName?: string;
-          metodoPago?: string;
-          nota?: string;
-        };
+    const paymentRows = reportPayments.map((payment) => {
+      const client = clients.find((item) => item.id === payment.clienteId);
+      const credit = credits.find((item) => item.id === payment.creditoId);
 
-        return [
-          'Gasto',
-          data.routeName || selectedRoute?.nombre || '',
-          '',
-          expense.createdBy || '',
-          '',
-          expense.fecha,
-          data.metodoPago || '',
-          expense.estado,
-          '',
-          '',
-          '',
-          '',
-          '',
-          expense.valor,
-          '',
-          data.nota || expense.descripcion
-        ];
-      }),
-      ...filteredCredits.map((credit) => {
-        const client = clients.find((item) => item.id === credit.clienteId);
-        const totalPaid = creditPaymentMap.get(credit.id) || 0;
+      return [
+        'Pago',
+        client?.routeName || '',
+        client?.nombre || getClientName(payment.clienteId),
+        payment.usuarioEmail,
+        payment.creditoId,
+        payment.fechaPago,
+        payment.metodoPago,
+        payment.estado,
+        credit?.valorPrestado || '',
+        credit?.valorTotal || '',
+        '',
+        credit?.saldoPendiente || '',
+        payment.valorPagado,
+        '',
+        '',
+        payment.observacion || ''
+      ];
+    });
 
-        return [
-          'Credito',
-          client?.routeName || selectedRoute?.nombre || '',
-          client?.nombre || getClientName(credit.clienteId),
-          credit.assignedToEmail || '',
-          credit.id,
-          credit.fechaInicio,
-          credit.frecuencia,
-          credit.estado,
-          credit.valorPrestado,
-          credit.valorTotal,
-          totalPaid,
-          credit.saldoPendiente,
-          '',
-          '',
-          '',
-          credit.nota || ''
-        ];
-      }),
-      ...filteredClients.map((client) => [
+    const expenseRows = reportExpenses.map((expense) => {
+      const data = expense as typeof expense & {
+        routeName?: string;
+        metodoPago?: string;
+        nota?: string;
+      };
+
+      return [
+        'Gasto',
+        data.routeName || '',
+        '',
+        expense.createdBy || '',
+        '',
+        expense.fecha,
+        data.metodoPago || '',
+        expense.estado,
+        '',
+        '',
+        '',
+        '',
+        '',
+        expense.valor,
+        '',
+        data.nota || expense.descripcion
+      ];
+    });
+
+    const creditRows = reportCredits.map((credit) => {
+      const client = clients.find((item) => item.id === credit.clienteId);
+      const totalPaid = creditPaymentMap.get(credit.id) || 0;
+
+      return [
+        'Credito',
+        client?.routeName || '',
+        client?.nombre || getClientName(credit.clienteId),
+        credit.assignedToEmail || '',
+        credit.id,
+        credit.fechaInicio,
+        credit.frecuencia,
+        credit.estado,
+        credit.valorPrestado,
+        credit.valorTotal,
+        totalPaid,
+        credit.saldoPendiente,
+        '',
+        '',
+        '',
+        credit.nota || ''
+      ];
+    });
+
+    const clientRows = reportClients.map((client) => {
+      const clientCredits = credits.filter((credit) => credit.clienteId === client.id && credit.estado !== 'anulado');
+      const clientPending = clientCredits.reduce((total, credit) => total + credit.saldoPendiente, 0);
+
+      return [
         'Cliente',
-        client.routeName || selectedRoute?.nombre || '',
+        client.routeName || '',
         client.nombre,
         client.assignedToEmail || '',
         '',
@@ -460,39 +411,59 @@ export function ExportReportsScreen() {
         '',
         '',
         '',
-        '',
+        clientPending,
         '',
         '',
         '',
         client.telefono
-      ]),
-      ...routeSummary.map((item) => [
-        'Resumen ruta',
-        item.route.nombre,
-        `${item.clients} clientes`,
-        '',
-        '',
-        `${startDate} a ${endDate}`,
-        '',
-        '',
-        '',
-        '',
-        item.paid,
-        item.pending,
-        item.paid,
-        item.spent,
-        item.net,
-        ''
-      ])
-    ];
+      ];
+    });
 
-    const summaryRows: unknown[][] = [
-      ['Resumen', '', '', '', '', `${startDate} a ${endDate}`, '', '', totals.totalLoaned, totals.totalToPay, totals.totalPayments, totals.totalPending, totals.totalPayments, totals.totalExpenses, totals.netCash, 'Totales generales'],
-      ['Resumen efectivo', '', '', '', '', `${startDate} a ${endDate}`, 'Efectivo', '', '', '', '', '', totals.totalCash, '', '', 'Total efectivo'],
-      ['Resumen transferencia', '', '', '', '', `${startDate} a ${endDate}`, 'Transferencia/Otros', '', '', '', '', '', totals.totalTransfer, '', '', 'Total transferencia y otros']
-    ];
+    const routeRows = reportRouteSummary.map((item) => [
+      'Resumen ruta',
+      item.route.nombre,
+      `${item.clients} clientes`,
+      '',
+      '',
+      isAll ? 'Todo el historial' : `${startDate} a ${endDate}`,
+      '',
+      '',
+      '',
+      '',
+      item.paid,
+      item.pending,
+      item.paid,
+      item.spent,
+      item.net,
+      ''
+    ]);
 
-    const csv = toCsv(headers, [...summaryRows, ...rows]);
+    const cashRows = reportCashClosings.map((closing) => {
+      const data = closing as typeof closing & {
+        routeName?: string;
+      };
+
+      return [
+        'Cierre caja',
+        data.routeName || '',
+        '',
+        closing.usuarioEmail,
+        '',
+        closing.fecha,
+        '',
+        '',
+        '',
+        '',
+        closing.totalPagos,
+        '',
+        closing.totalPagos,
+        closing.totalGastos,
+        closing.cajaEsperada,
+        `Entregado: ${closing.cajaEntregada} | Diferencia: ${closing.diferencia} | ${closing.observacion || ''}`
+      ];
+    });
+
+    const csv = toCsv(headers, [...summaryRows, ...paymentRows, ...expenseRows, ...creditRows, ...clientRows, ...routeRows, ...cashRows]);
     const available = await Sharing.isAvailableAsync();
 
     if (!available) {
@@ -500,7 +471,10 @@ export function ExportReportsScreen() {
       return;
     }
 
-    const name = `reporte-cobroapp-${startDate}-a-${endDate}.csv`;
+    const name = isAll
+      ? `reporte-general-cobroapp-${todayKey()}.csv`
+      : `reporte-filtrado-cobroapp-${startDate}-a-${endDate}.csv`;
+
     const uri = `${FileSystem.cacheDirectory}${name}`;
 
     await FileSystem.writeAsStringAsync(uri, csv, {
@@ -509,7 +483,7 @@ export function ExportReportsScreen() {
 
     await Sharing.shareAsync(uri, {
       mimeType: 'text/csv',
-      dialogTitle: 'Exportar reporte para Excel'
+      dialogTitle: isAll ? 'Exportar todo general' : 'Exportar reporte filtrado'
     });
   };
 
@@ -521,11 +495,21 @@ export function ExportReportsScreen() {
         <Card style={styles.heroCard}>
           <Text style={styles.heroTitle}>{businessSettings.appName || 'CobroApp'} - Reportes Excel</Text>
           <Text style={styles.heroText}>
-            Filtra por fecha, ruta, cobrador, cliente, metodo de pago y estado para exportar reportes compatibles con Excel.
+            Exporta todo el historial general o genera reportes filtrados por fecha, ruta, cobrador, cliente, metodo y estado.
           </Text>
         </Card>
 
-        <Text style={styles.label}>Periodo</Text>
+        <Card style={styles.exportCard}>
+          <Text style={styles.exportTitle}>Exportacion rapida</Text>
+          <Text style={styles.exportText}>
+            Usa el reporte general para sacar toda la informacion de la app. Usa el reporte filtrado para fechas, rutas o cobradores especificos.
+          </Text>
+
+          <Button title="Exportar todo general" onPress={() => exportReport('all')} style={styles.exportButton} />
+          <Button title="Exportar reporte filtrado" variant="secondary" onPress={() => exportReport('filtered')} style={styles.exportButton} />
+        </Card>
+
+        <Text style={styles.label}>Periodo para reporte filtrado</Text>
 
         <View style={styles.chips}>
           <Chip label="Diario" selected={period === 'dia'} onPress={() => applyPeriod('dia')} />
@@ -537,7 +521,6 @@ export function ExportReportsScreen() {
 
         <Input label="Fecha inicial" icon="I" value={startDate} onChangeText={(value) => { setStartDate(value); setPeriod('personalizado'); }} placeholder="YYYY-MM-DD" />
         <Input label="Fecha final" icon="F" value={endDate} onChangeText={(value) => { setEndDate(value); setPeriod('personalizado'); }} placeholder="YYYY-MM-DD" />
-
         <Input label="Buscar" icon="B" value={query} onChangeText={setQuery} placeholder="Cliente, cobrador, credito, metodo o nota" />
 
         <Text style={styles.label}>Ruta</Text>
@@ -591,8 +574,8 @@ export function ExportReportsScreen() {
         {tab === 'resumen' ? (
           <>
             <View style={styles.grid}>
-              <Metric title="Total pagos" value={formatMoney(totals.totalPayments)} />
-              <Metric title="Total gastos" value={formatMoney(totals.totalExpenses)} danger={totals.totalExpenses > 0} />
+              <Metric title="Pagos filtrados" value={formatMoney(totals.totalPayments)} />
+              <Metric title="Gastos filtrados" value={formatMoney(totals.totalExpenses)} danger={totals.totalExpenses > 0} />
             </View>
 
             <View style={styles.grid}>
@@ -602,23 +585,16 @@ export function ExportReportsScreen() {
 
             <View style={styles.grid}>
               <Metric title="Caja neta" value={formatMoney(totals.netCash)} danger={totals.netCash < 0} />
-              <Metric title="Estimado hoy" value={formatMoney(totals.estimatedToday)} danger={totals.estimatedToday > 0} />
-            </View>
-
-            <View style={styles.grid}>
-              <Metric title="Prestado" value={formatMoney(totals.totalLoaned)} />
               <Metric title="Pendiente" value={formatMoney(totals.totalPending)} danger={totals.totalPending > 0} />
             </View>
 
-            <View style={styles.grid}>
-              <Metric title="Creditos activos" value={String(totals.activeCredits)} />
-              <Metric title="Creditos en mora" value={String(totals.overdueCredits)} danger={totals.overdueCredits > 0} />
-            </View>
-
-            <View style={styles.grid}>
-              <Metric title="Clientes al dia" value={String(totals.clientsOk)} />
-              <Metric title="Clientes en mora" value={String(totals.clientsMora)} danger={totals.clientsMora > 0} />
-            </View>
+            <Card style={styles.infoCard}>
+              <Text style={styles.infoTitle}>Resumen general completo</Text>
+              <Text style={styles.infoText}>Pagos totales: {formatMoney(allTotals.totalPayments)}</Text>
+              <Text style={styles.infoText}>Gastos totales: {formatMoney(allTotals.totalExpenses)}</Text>
+              <Text style={styles.infoText}>Caja neta general: {formatMoney(allTotals.netCash)}</Text>
+              <Text style={styles.infoText}>Saldo pendiente general: {formatMoney(allTotals.totalPending)}</Text>
+            </Card>
 
             <Card style={styles.infoCard}>
               <Text style={styles.infoTitle}>Filtros aplicados</Text>
@@ -766,13 +742,112 @@ export function ExportReportsScreen() {
             ))}
           </>
         ) : null}
-
-        <Button title="Exportar reporte para Excel" onPress={exportCurrentReport} style={styles.exportButton} />
       </Screen>
 
       <BottomNav />
     </View>
   );
+}
+
+function buildTotals(
+  reportClients: any[],
+  reportCredits: any[],
+  reportPayments: any[],
+  reportExpenses: any[],
+  allPayments: any[]
+) {
+  const totalPayments = reportPayments.reduce((total, payment) => total + payment.valorPagado, 0);
+  const totalCash = reportPayments
+    .filter((payment) => payment.metodoPago === 'Efectivo')
+    .reduce((total, payment) => total + payment.valorPagado, 0);
+
+  const totalTransfer = reportPayments
+    .filter((payment) => payment.metodoPago !== 'Efectivo')
+    .reduce((total, payment) => total + payment.valorPagado, 0);
+
+  const totalExpenses = reportExpenses.reduce((total, expense) => total + expense.valor, 0);
+  const activeCredits = reportCredits.filter((credit) => credit.estado !== 'anulado');
+  const totalLoaned = activeCredits.reduce((total, credit) => total + credit.valorPrestado, 0);
+  const totalToPay = activeCredits.reduce((total, credit) => total + credit.valorTotal, 0);
+  const totalPending = activeCredits.reduce((total, credit) => total + credit.saldoPendiente, 0);
+
+  const estimatedToday = activeCredits
+    .filter((credit) => credit.estado !== 'pagado')
+    .reduce((total, credit) => {
+      const due = buildInstallments(credit, allPayments, todayKey()).filter(
+        (item) => item.fecha <= todayKey() && item.pendiente > 0
+      );
+
+      return total + due.reduce((sum, item) => sum + item.pendiente, 0);
+    }, 0);
+
+  return {
+    totalPayments,
+    totalCash,
+    totalTransfer,
+    totalExpenses,
+    netCash: totalPayments - totalExpenses,
+    totalLoaned,
+    totalToPay,
+    totalPending,
+    estimatedToday,
+    activeCredits: reportCredits.filter((credit) => credit.estado === 'activo').length,
+    paidCredits: reportCredits.filter((credit) => credit.estado === 'pagado').length,
+    overdueCredits: reportCredits.filter((credit) => credit.estado === 'vencido').length,
+    canceledCredits: reportCredits.filter((credit) => credit.estado === 'anulado').length,
+    clientsOk: reportClients.filter((client) => client.estado === 'al-dia').length,
+    clientsMora: reportClients.filter((client) => client.estado === 'en-mora').length
+  };
+}
+
+function buildRouteSummary(
+  routes: any[],
+  clients: any[],
+  credits: any[],
+  payments: any[],
+  expenses: any[],
+  startDate: string,
+  endDate: string
+) {
+  return routes.map((route) => {
+    const routeClientList = clients.filter((client) => client.routeId === route.id);
+    const ids = new Set(routeClientList.map((client) => client.id));
+    const routeCredits = credits.filter((credit) => ids.has(credit.clienteId) && credit.estado !== 'anulado');
+
+    const routePayments = payments.filter((payment) => {
+      if (!ids.has(payment.clienteId)) return false;
+      if (payment.estado === 'anulado') return false;
+      if (startDate || endDate) return inRange(payment.fechaPago, startDate, endDate);
+      return true;
+    });
+
+    const routeExpenses = expenses.filter((expense) => {
+      const data = expense as typeof expense & {
+        routeId?: string;
+        routeName?: string;
+      };
+
+      if (expense.estado === 'anulado') return false;
+      if ((startDate || endDate) && !inRange(expense.fecha, startDate, endDate)) return false;
+      if (data.routeId) return data.routeId === route.id;
+      if (data.routeName) return data.routeName === route.nombre;
+
+      return false;
+    });
+
+    const paid = routePayments.reduce((total, payment) => total + payment.valorPagado, 0);
+    const spent = routeExpenses.reduce((total, expense) => total + expense.valor, 0);
+    const pending = routeCredits.reduce((total, credit) => total + credit.saldoPendiente, 0);
+
+    return {
+      route,
+      clients: routeClientList.length,
+      paid,
+      spent,
+      pending,
+      net: paid - spent
+    };
+  });
 }
 
 function Chip({
@@ -844,6 +919,25 @@ const styles = StyleSheet.create({
     marginTop: 6,
     lineHeight: 20,
     fontWeight: '700'
+  },
+  exportCard: {
+    backgroundColor: '#FFF8E1',
+    marginBottom: 14
+  },
+  exportTitle: {
+    color: colors.text,
+    fontSize: 17,
+    fontWeight: '900'
+  },
+  exportText: {
+    color: colors.muted,
+    fontWeight: '700',
+    lineHeight: 20,
+    marginTop: 6,
+    marginBottom: 8
+  },
+  exportButton: {
+    marginTop: 10
   },
   label: {
     color: colors.text,
@@ -939,9 +1033,5 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginTop: 5,
     lineHeight: 20
-  },
-  exportButton: {
-    marginTop: 10,
-    marginBottom: 12
   }
 });
