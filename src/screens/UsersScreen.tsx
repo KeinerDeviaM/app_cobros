@@ -12,7 +12,7 @@ import { useApp } from '../state/AppContext';
 import { colors } from '../theme/colors';
 import { UserProfile, UserRole } from '../types';
 
-type UserFilter = 'todos' | 'admin' | 'cobrador' | 'activos' | 'inactivos';
+type UserFilter = 'todos' | 'admin' | 'supervisor' | 'cobrador' | 'activos' | 'inactivos';
 
 function normalize(value: unknown) {
   return String(value ?? '')
@@ -22,12 +22,28 @@ function normalize(value: unknown) {
     .trim();
 }
 
+function getRoleLabel(role: UserRole) {
+  if (role === 'admin') return 'Administrador';
+  if (role === 'supervisor') return 'Supervisor';
+  return 'Cobrador';
+}
+
 function getRoleDescription(role: UserRole) {
   if (role === 'admin') {
-    return 'Puede gestionar usuarios, clientes, creditos, reportes, auditoria, respaldo y configuracion.';
+    return 'Control total: usuarios, roles, rutas, clientes, creditos, pagos, caja, reportes, auditoria, respaldo y configuracion.';
   }
 
-  return 'Puede gestionar su cartera asignada, registrar pagos, visitas, promesas y cierre de caja.';
+  if (role === 'supervisor') {
+    return 'Puede supervisar operacion, revisar reportes, validar caja, editar y anular pagos con auditoria.';
+  }
+
+  return 'Puede ver su cartera asignada, registrar pagos, generar recibos, registrar visitas, promesas, gastos y cerrar su caja.';
+}
+
+function getRoleBadge(role: UserRole) {
+  if (role === 'admin') return 'warning';
+  if (role === 'supervisor') return 'success';
+  return 'success';
 }
 
 export function UsersScreen() {
@@ -49,6 +65,7 @@ export function UsersScreen() {
       if (!matchesQuery) return false;
 
       if (filter === 'admin') return user.role === 'admin';
+      if (filter === 'supervisor') return user.role === 'supervisor';
       if (filter === 'cobrador') return user.role === 'cobrador';
       if (filter === 'activos') return user.activo;
       if (filter === 'inactivos') return !user.activo;
@@ -61,6 +78,7 @@ export function UsersScreen() {
     return {
       total: users.length,
       admins: users.filter((user) => user.role === 'admin').length,
+      supervisors: users.filter((user) => user.role === 'supervisor').length,
       collectors: users.filter((user) => user.role === 'cobrador').length,
       active: users.filter((user) => user.activo).length,
       inactive: users.filter((user) => !user.activo).length
@@ -69,13 +87,13 @@ export function UsersScreen() {
 
   const confirmChangeRole = (user: UserProfile, nextRole: UserRole) => {
     if (user.uid === session.uid && nextRole !== 'admin') {
-      Alert.alert('Acción no permitida', 'No puedes quitarte tu propio rol de administrador.');
+      Alert.alert('Accion no permitida', 'No puedes quitarte tu propio rol de administrador.');
       return;
     }
 
     Alert.alert(
       'Cambiar rol',
-      `¿Deseas cambiar el rol de ${user.email} a ${nextRole}?`,
+      `Deseas cambiar el rol de ${user.email} a ${getRoleLabel(nextRole)}?`,
       [
         { text: 'Cancelar', style: 'cancel' },
         {
@@ -90,15 +108,15 @@ export function UsersScreen() {
     const nextValue = !user.activo;
 
     if (user.uid === session.uid && !nextValue) {
-      Alert.alert('Acción no permitida', 'No puedes desactivar tu propio usuario.');
+      Alert.alert('Accion no permitida', 'No puedes desactivar tu propio usuario.');
       return;
     }
 
     Alert.alert(
       nextValue ? 'Activar usuario' : 'Desactivar usuario',
       nextValue
-        ? `¿Deseas activar el usuario ${user.email}?`
-        : `¿Deseas desactivar el usuario ${user.email}? Este usuario no debería poder seguir usando la app.`,
+        ? `Deseas activar el usuario ${user.email}?`
+        : `Deseas desactivar el usuario ${user.email}?`,
       [
         { text: 'Cancelar', style: 'cancel' },
         {
@@ -112,20 +130,25 @@ export function UsersScreen() {
 
   return (
     <View style={styles.root}>
-      <TopBar title="Usuarios y permisos" showBack onBack={() => navigate('more')} />
+      <TopBar title="Usuarios y roles" showBack onBack={() => navigate('more')} />
 
       <Screen>
         <Card style={styles.heroCard}>
-          <Text style={styles.heroTitle}>Gestión de usuarios</Text>
+          <Text style={styles.heroTitle}>Gestion de usuarios</Text>
           <Text style={styles.heroText}>
-            Administra roles, permisos y acceso de cobradores y administradores.
+            Administra administradores, supervisores y cobradores. El cobrador no puede editar ni anular pagos.
           </Text>
-          <Text style={styles.heroMeta}>Tu sesión: {session.email}</Text>
+          <Text style={styles.heroMeta}>Sesion actual: {session.email}</Text>
         </Card>
 
         <View style={styles.grid}>
           <Metric title="Total" value={String(summary.total)} />
-          <Metric title="Admins" value={String(summary.admins)} />
+          <Metric title="Activos" value={String(summary.active)} />
+        </View>
+
+        <View style={styles.grid}>
+          <Metric title="Admin" value={String(summary.admins)} />
+          <Metric title="Supervisores" value={String(summary.supervisors)} />
         </View>
 
         <View style={styles.grid}>
@@ -135,7 +158,7 @@ export function UsersScreen() {
 
         <Input
           label="Buscar usuario"
-          icon="🔎"
+          icon="B"
           value={query}
           onChangeText={setQuery}
           placeholder="Correo del usuario"
@@ -146,22 +169,26 @@ export function UsersScreen() {
         <View style={styles.filters}>
           <FilterChip label="Todos" value="todos" current={filter} onPress={setFilter} />
           <FilterChip label="Admin" value="admin" current={filter} onPress={setFilter} />
+          <FilterChip label="Supervisor" value="supervisor" current={filter} onPress={setFilter} />
           <FilterChip label="Cobrador" value="cobrador" current={filter} onPress={setFilter} />
           <FilterChip label="Activos" value="activos" current={filter} onPress={setFilter} />
           <FilterChip label="Inactivos" value="inactivos" current={filter} onPress={setFilter} danger />
         </View>
 
         <Card style={styles.guideCard}>
-          <Text style={styles.guideTitle}>Cómo crear un usuario nuevo</Text>
+          <Text style={styles.guideTitle}>Crear usuario y contrasena</Text>
           <Text style={styles.guideText}>
-            Primero crea el usuario en Firebase Authentication con correo y contraseña. Luego ese usuario inicia sesión en la app una vez y aparecerá aquí para asignarle rol y estado.
+            Para crear un usuario real con correo y contrasena, se debe crear primero en Firebase Authentication. Luego el trabajador inicia sesion una vez y aparece aqui para asignarle rol.
+          </Text>
+          <Text style={styles.guideText}>
+            Para crearlo directamente desde la app sin cerrar la sesion del administrador, el siguiente paso es una Cloud Function segura.
           </Text>
         </Card>
 
         <Text style={styles.blockTitle}>Usuarios encontrados: {filteredUsers.length}</Text>
 
         {filteredUsers.length === 0 ? (
-          <EmptyState title="Sin usuarios" message="No hay usuarios con ese filtro o búsqueda." />
+          <EmptyState title="Sin usuarios" message="No hay usuarios con ese filtro o busqueda." />
         ) : (
           filteredUsers.map((user) => (
             <UserCard
@@ -177,19 +204,20 @@ export function UsersScreen() {
         <Card style={styles.permissionsCard}>
           <Text style={styles.permissionsTitle}>Permisos por rol</Text>
 
-          <View style={styles.permissionBlock}>
-            <Text style={styles.permissionRole}>Administrador</Text>
-            <Text style={styles.permissionText}>
-              Puede crear y editar clientes, creditos, rutas, usuarios, reportes, auditoria, configuracion, respaldo y generar APKs nuevas.
-            </Text>
-          </View>
+          <PermissionBlock
+            title="Administrador"
+            text="Puede gestionar usuarios, cambiar roles, activar o desactivar usuarios, ver toda la informacion, editar y anular pagos, ver auditoria, respaldo y configuracion."
+          />
 
-          <View style={styles.permissionBlock}>
-            <Text style={styles.permissionRole}>Cobrador</Text>
-            <Text style={styles.permissionText}>
-              Puede ver su cartera asignada, registrar pagos, generar recibos, gestionar visitas, promesas y cerrar su caja diaria.
-            </Text>
-          </View>
+          <PermissionBlock
+            title="Supervisor"
+            text="Puede supervisar operacion, revisar caja y reportes, editar y anular pagos con auditoria. No debe crear administradores ni desactivar al administrador principal."
+          />
+
+          <PermissionBlock
+            title="Cobrador"
+            text="Puede registrar pagos, ver su ruta, clientes y creditos asignados, registrar gastos, visitas, promesas y cerrar caja. No puede editar ni anular pagos."
+          />
         </Card>
       </Screen>
 
@@ -263,17 +291,16 @@ function UserCard({
   onChangeRole: (user: UserProfile, nextRole: UserRole) => void;
   onToggleActive: (user: UserProfile) => void;
 }) {
-  const nextRole: UserRole = user.role === 'admin' ? 'cobrador' : 'admin';
-
   return (
     <Card style={[styles.userCard, !user.activo ? styles.inactiveCard : null]}>
       <View style={styles.userHeader}>
         <View style={styles.userInfo}>
           <Text style={styles.userEmail}>{user.email}</Text>
           <Text style={styles.userMeta}>
-            Rol: {user.role} · Estado: {user.activo ? 'Activo' : 'Inactivo'}
+            Rol: {getRoleLabel(user.role)} - Estado: {user.activo ? 'Activo' : 'Inactivo'}
           </Text>
           <Text style={styles.userDescription}>{getRoleDescription(user.role)}</Text>
+
           {isCurrentUser ? (
             <Text style={styles.currentUserText}>Este es tu usuario actual.</Text>
           ) : null}
@@ -283,26 +310,57 @@ function UserCard({
       </View>
 
       <View style={styles.roleBox}>
-        <StatusBadge type={user.role === 'admin' ? 'warning' : 'success'} label={user.role === 'admin' ? 'Admin' : 'Cobrador'} />
+        <StatusBadge type={getRoleBadge(user.role)} label={getRoleLabel(user.role)} />
         <Text style={styles.createdText}>Creado: {user.createdAt?.slice(0, 10) || 'Sin fecha'}</Text>
       </View>
 
-      <View style={styles.buttonGrid}>
+      <Text style={styles.actionTitle}>Cambiar rol</Text>
+
+      <View style={styles.roleButtons}>
         <Button
-          title={`Cambiar a ${nextRole}`}
-          variant="secondary"
-          onPress={() => onChangeRole(user, nextRole)}
-          style={styles.actionButton}
+          title="Admin"
+          variant={user.role === 'admin' ? 'secondary' : 'secondary'}
+          onPress={() => onChangeRole(user, 'admin')}
+          style={styles.roleButton}
         />
 
         <Button
-          title={user.activo ? 'Desactivar' : 'Activar'}
-          variant={user.activo ? 'danger' : 'secondary'}
-          onPress={() => onToggleActive(user)}
-          style={styles.actionButton}
+          title="Supervisor"
+          variant={user.role === 'supervisor' ? 'secondary' : 'secondary'}
+          onPress={() => onChangeRole(user, 'supervisor')}
+          style={styles.roleButton}
+        />
+
+        <Button
+          title="Cobrador"
+          variant={user.role === 'cobrador' ? 'secondary' : 'secondary'}
+          onPress={() => onChangeRole(user, 'cobrador')}
+          style={styles.roleButton}
         />
       </View>
+
+      <Button
+        title={user.activo ? 'Desactivar usuario' : 'Activar usuario'}
+        variant={user.activo ? 'danger' : 'secondary'}
+        onPress={() => onToggleActive(user)}
+        style={styles.activeButton}
+      />
     </Card>
+  );
+}
+
+function PermissionBlock({
+  title,
+  text
+}: {
+  title: string;
+  text: string;
+}) {
+  return (
+    <View style={styles.permissionBlock}>
+      <Text style={styles.permissionRole}>{title}</Text>
+      <Text style={styles.permissionText}>{text}</Text>
+    </View>
   );
 }
 
@@ -459,13 +517,21 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     fontSize: 12
   },
-  buttonGrid: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 12
+  actionTitle: {
+    color: colors.text,
+    fontWeight: '900',
+    marginTop: 12,
+    marginBottom: 8
   },
-  actionButton: {
+  roleButtons: {
+    flexDirection: 'row',
+    gap: 8
+  },
+  roleButton: {
     flex: 1
+  },
+  activeButton: {
+    marginTop: 12
   },
   permissionsCard: {
     marginTop: 8,
