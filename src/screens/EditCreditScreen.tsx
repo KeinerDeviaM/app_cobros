@@ -9,76 +9,76 @@ import { Screen } from '../components/Screen';
 import { TopBar } from '../components/TopBar';
 import { useApp } from '../state/AppContext';
 import { colors } from '../theme/colors';
-import { CreditStatus, Frequency } from '../types';
+import { Frequency } from '../types';
 import { formatMoney } from '../utils/money';
 import { isPositiveInteger, isPositiveMoney, isValidDateKey, parseMoney } from '../utils/validation';
 
-const frequencies: Frequency[] = ['Diaria', 'Semanal', 'Quincenal', 'Mensual'];
-const editableStatuses: CreditStatus[] = ['activo', 'vencido', 'pagado'];
+const frequencies: Frequency[] = ['Diaria', 'Semanal', 'Quincenal', 'Mensual', 'Personalizada'];
 
 export function EditCreditScreen() {
+  const app = useApp() as any;
+
   const {
     selectedCredit,
     clients,
-    payments,
     updateCredit,
     navigate
-  } = useApp();
+  } = app;
 
   const [valorPrestado, setValorPrestado] = useState('');
   const [valorTotal, setValorTotal] = useState('');
   const [numeroCuotas, setNumeroCuotas] = useState('');
   const [frecuencia, setFrecuencia] = useState<Frequency>('Diaria');
   const [fechaInicio, setFechaInicio] = useState('');
-  const [estado, setEstado] = useState<CreditStatus>('activo');
+  const [fechaFinal, setFechaFinal] = useState('');
+  const [porcentaje, setPorcentaje] = useState('');
+  const [nota, setNota] = useState('');
+  const [codeudorTiene, setCodeudorTiene] = useState(false);
+  const [codeudorClienteId, setCodeudorClienteId] = useState('');
+  const [codeudorNombreCompleto, setCodeudorNombreCompleto] = useState('');
+  const [codeudorSobrenombre, setCodeudorSobrenombre] = useState('');
+  const [codeudorCpf, setCodeudorCpf] = useState('');
+  const [codeudorDireccion, setCodeudorDireccion] = useState('');
+  const [codeudorTelefono, setCodeudorTelefono] = useState('');
+  const [codeudorNota, setCodeudorNota] = useState('');
   const [loading, setLoading] = useState(false);
 
   const client = useMemo(() => {
     if (!selectedCredit) return undefined;
-    return clients.find((item) => item.id === selectedCredit.clienteId);
+    return clients.find((item: any) => item.id === selectedCredit.clienteId);
   }, [clients, selectedCredit]);
-
-  const creditPayments = useMemo(() => {
-    if (!selectedCredit) return [];
-    return payments.filter(
-      (payment) => payment.creditoId === selectedCredit.id && payment.estado !== 'anulado'
-    );
-  }, [payments, selectedCredit]);
-
-  const totalPaid = creditPayments.reduce((total, payment) => total + payment.valorPagado, 0);
 
   useEffect(() => {
     if (!selectedCredit) return;
 
-    setValorPrestado(String(selectedCredit.valorPrestado));
-    setValorTotal(String(selectedCredit.valorTotal));
-    setNumeroCuotas(String(selectedCredit.numeroCuotas));
-    setFrecuencia(selectedCredit.frecuencia);
-    setFechaInicio(selectedCredit.fechaInicio);
-    setEstado(selectedCredit.estado === 'anulado' ? 'activo' : selectedCredit.estado);
+    setValorPrestado(String(selectedCredit.valorPrestado || ''));
+    setValorTotal(String(selectedCredit.valorTotal || ''));
+    setNumeroCuotas(String(selectedCredit.numeroCuotas || ''));
+    setFrecuencia(selectedCredit.frecuencia || 'Diaria');
+    setFechaInicio(selectedCredit.fechaInicio || '');
+    setFechaFinal(selectedCredit.fechaFinal || '');
+    setPorcentaje(String(selectedCredit.porcentaje || ''));
+    setNota(selectedCredit.nota || '');
+    setCodeudorTiene(Boolean(selectedCredit.codeudorTiene));
+    setCodeudorClienteId(selectedCredit.codeudorClienteId || '');
+    setCodeudorNombreCompleto(selectedCredit.codeudorNombreCompleto || '');
+    setCodeudorSobrenombre(selectedCredit.codeudorSobrenombre || '');
+    setCodeudorCpf(selectedCredit.codeudorCpf || '');
+    setCodeudorDireccion(selectedCredit.codeudorDireccion || '');
+    setCodeudorTelefono(selectedCredit.codeudorTelefono || '');
+    setCodeudorNota(selectedCredit.codeudorNota || '');
   }, [selectedCredit]);
 
   if (!selectedCredit) {
     return (
       <View style={styles.root}>
-        <TopBar title="Editar crédito" showBack onBack={() => navigate('credits')} />
-        <Screen>
-          <EmptyState title="Crédito no encontrado" message="Vuelve a créditos y selecciona uno." />
-          <Button title="Volver a créditos" onPress={() => navigate('credits')} />
-        </Screen>
-        <BottomNav />
-      </View>
-    );
-  }
+        <TopBar title="Editar credito" showBack onBack={() => navigate('creditDetail')} />
 
-  if (selectedCredit.estado === 'anulado') {
-    return (
-      <View style={styles.root}>
-        <TopBar title="Editar crédito" showBack onBack={() => navigate('creditDetail')} />
         <Screen>
-          <EmptyState title="Crédito anulado" message="No se puede editar un crédito anulado." />
-          <Button title="Volver al detalle" onPress={() => navigate('creditDetail')} />
+          <EmptyState title="Credito no encontrado" message="Vuelve al detalle del credito y selecciona editar." />
+          <Button title="Volver a creditos" onPress={() => navigate('credits')} />
         </Screen>
+
         <BottomNav />
       </View>
     );
@@ -88,16 +88,34 @@ export function EditCreditScreen() {
   const totalNumber = parseMoney(valorTotal);
   const cuotasNumber = Number(numeroCuotas);
   const cuotaPreview = cuotasNumber > 0 && totalNumber > 0 ? Math.ceil(totalNumber / cuotasNumber) : 0;
-  const saldoPreview = estado === 'pagado' ? 0 : Math.max(totalNumber - totalPaid, 0);
+  const totalPagado = Math.max(0, Number(selectedCredit.valorTotal || 0) - Number(selectedCredit.saldoPendiente || 0));
+  const nuevoSaldo = Math.max(0, totalNumber - totalPagado);
 
-  const handleSave = async () => {
+  const selectCodeudorClient = (id: string) => {
+    setCodeudorClienteId(id);
+
+    const codeudor = clients.find((item: any) => item.id === id);
+
+    if (codeudor) {
+      setCodeudorNombreCompleto(codeudor.nombre);
+      setCodeudorDireccion(codeudor.direccion);
+      setCodeudorTelefono(codeudor.telefono);
+    }
+  };
+
+  const save = async () => {
+    if (typeof updateCredit !== 'function') {
+      Alert.alert('Funcion no conectada', 'Falta conectar updateCredit en AppContext.');
+      return;
+    }
+
     if (!isPositiveMoney(prestadoNumber)) {
-      Alert.alert('Valor inválido', 'El valor prestado debe ser mayor que cero.');
+      Alert.alert('Valor invalido', 'El valor prestado debe ser mayor que cero.');
       return;
     }
 
     if (!isPositiveMoney(totalNumber)) {
-      Alert.alert('Valor inválido', 'El valor total debe ser mayor que cero.');
+      Alert.alert('Valor invalido', 'El valor total a pagar debe ser mayor que cero.');
       return;
     }
 
@@ -106,26 +124,18 @@ export function EditCreditScreen() {
       return;
     }
 
-    if (totalNumber < totalPaid) {
-      Alert.alert(
-        'Valor total inválido',
-        `Este crédito ya tiene pagos activos por ${formatMoney(totalPaid)}. El total no puede ser menor.`
-      );
-      return;
-    }
-
     if (!isPositiveInteger(cuotasNumber)) {
-      Alert.alert('Cuotas inválidas', 'El número de cuotas debe ser un entero mayor que cero.');
-      return;
-    }
-
-    if (cuotasNumber > 365) {
-      Alert.alert('Demasiadas cuotas', 'El número de cuotas no puede ser mayor a 365.');
+      Alert.alert('Cuotas invalidas', 'El numero de cuotas debe ser mayor que cero.');
       return;
     }
 
     if (!isValidDateKey(fechaInicio)) {
-      Alert.alert('Fecha inválida', 'La fecha debe tener formato YYYY-MM-DD.');
+      Alert.alert('Fecha invalida', 'La fecha de inicio debe tener formato YYYY-MM-DD.');
+      return;
+    }
+
+    if (fechaFinal.trim() && !isValidDateKey(fechaFinal.trim())) {
+      Alert.alert('Fecha invalida', 'La fecha final debe tener formato YYYY-MM-DD.');
       return;
     }
 
@@ -134,10 +144,24 @@ export function EditCreditScreen() {
     await updateCredit(selectedCredit.id, {
       valorPrestado: prestadoNumber,
       valorTotal: totalNumber,
+      saldoPendiente: nuevoSaldo,
       numeroCuotas: cuotasNumber,
+      valorCuota: cuotaPreview,
       frecuencia,
+      tipoCobro: frecuencia,
       fechaInicio,
-      estado
+      fechaFinal: fechaFinal.trim(),
+      porcentaje: Number(porcentaje || 0),
+      nota: nota.trim(),
+      codeudorTiene,
+      codeudorTipo: codeudorClienteId ? 'cliente' : 'nuevo',
+      codeudorClienteId,
+      codeudorNombreCompleto: codeudorNombreCompleto.trim(),
+      codeudorSobrenombre: codeudorSobrenombre.trim(),
+      codeudorCpf: codeudorCpf.replace(/[^0-9]/g, ''),
+      codeudorDireccion: codeudorDireccion.trim(),
+      codeudorTelefono: codeudorTelefono.trim(),
+      codeudorNota: codeudorNota.trim()
     });
 
     setLoading(false);
@@ -145,125 +169,141 @@ export function EditCreditScreen() {
 
   return (
     <View style={styles.root}>
-      <TopBar title="Editar crédito" showBack onBack={() => navigate('creditDetail')} />
+      <TopBar title="Editar credito" showBack onBack={() => navigate('creditDetail')} />
+
       <Screen>
-        <Card style={styles.infoCard}>
-          <Text style={styles.infoTitle}>Editando crédito</Text>
-          <Text style={styles.infoText}>Cliente: {client?.nombre ?? 'Cliente no encontrado'}</Text>
-          <Text style={styles.infoText}>Pagos activos registrados: {formatMoney(totalPaid)}</Text>
+        <Card style={styles.heroCard}>
+          <Text style={styles.heroTitle}>{client?.nombre || 'Cliente no encontrado'}</Text>
+          <Text style={styles.heroText}>Credito: {selectedCredit.id}</Text>
+          <Text style={styles.heroText}>Pagado actual: {formatMoney(totalPagado)}</Text>
+          <Text style={styles.heroText}>Saldo nuevo calculado: {formatMoney(nuevoSaldo)}</Text>
         </Card>
 
         <Card style={styles.formCard}>
-          <Text style={styles.sectionTitle}>Datos del crédito</Text>
+          <Text style={styles.sectionTitle}>Datos del credito</Text>
 
-          <Input
-            label="Valor prestado"
-            icon="💵"
-            value={valorPrestado}
-            onChangeText={setValorPrestado}
-            placeholder="Ej: 100000"
-            keyboardType="numeric"
-          />
-
-          <Input
-            label="Valor total a pagar"
-            icon="💰"
-            value={valorTotal}
-            onChangeText={setValorTotal}
-            placeholder="Ej: 120000"
-            keyboardType="numeric"
-          />
-
-          <Input
-            label="Número de cuotas"
-            icon="🔢"
-            value={numeroCuotas}
-            onChangeText={setNumeroCuotas}
-            placeholder="Ej: 12"
-            keyboardType="numeric"
-          />
+          <Input label="Valor prestado" icon="$" value={valorPrestado} onChangeText={setValorPrestado} keyboardType="numeric" />
+          <Input label="Valor total a pagar" icon="$" value={valorTotal} onChangeText={setValorTotal} keyboardType="numeric" />
+          <Input label="Numero de cuotas" icon="#" value={numeroCuotas} onChangeText={setNumeroCuotas} keyboardType="numeric" />
 
           <Text style={styles.label}>Frecuencia</Text>
+
           <View style={styles.chipList}>
             {frequencies.map((item) => {
               const selected = item === frecuencia;
 
               return (
-                <Pressable
-                  key={item}
-                  style={[styles.chip, selected ? styles.chipSelected : null]}
-                  onPress={() => setFrecuencia(item)}
-                >
-                  <Text style={[styles.chipText, selected ? styles.chipTextSelected : null]}>
-                    {item}
-                  </Text>
+                <Pressable key={item} style={[styles.chip, selected ? styles.chipSelected : null]} onPress={() => setFrecuencia(item)}>
+                  <Text style={[styles.chipText, selected ? styles.chipTextSelected : null]}>{item}</Text>
                 </Pressable>
               );
             })}
           </View>
 
-          <Input
-            label="Fecha de inicio"
-            icon="📅"
-            value={fechaInicio}
-            onChangeText={setFechaInicio}
-            placeholder="YYYY-MM-DD"
-          />
-
-          <Text style={styles.label}>Estado</Text>
-          <View style={styles.chipList}>
-            {editableStatuses.map((item) => {
-              const selected = item === estado;
-              const danger = item === 'vencido';
-
-              return (
-                <Pressable
-                  key={item}
-                  style={[
-                    styles.chip,
-                    selected ? styles.chipSelected : null,
-                    selected && danger ? styles.chipDangerSelected : null
-                  ]}
-                  onPress={() => setEstado(item)}
-                >
-                  <Text
-                    style={[
-                      styles.chipText,
-                      selected ? styles.chipTextSelected : null,
-                      selected && danger ? styles.chipDangerText : null
-                    ]}
-                  >
-                    {item}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
+          <Input label="Fecha inicio" icon="I" value={fechaInicio} onChangeText={setFechaInicio} placeholder="YYYY-MM-DD" />
+          <Input label="Fecha final" icon="F" value={fechaFinal} onChangeText={setFechaFinal} placeholder="YYYY-MM-DD opcional" />
+          <Input label="Porcentaje" icon="%" value={porcentaje} onChangeText={setPorcentaje} keyboardType="numeric" />
+          <Input label="Nota del credito" icon="N" value={nota} onChangeText={setNota} placeholder="Nota opcional" />
 
           <View style={styles.previewBox}>
             <Text style={styles.previewTitle}>Vista previa</Text>
-            <Text style={styles.previewText}>Valor cuota: {formatMoney(cuotaPreview)}</Text>
-            <Text style={styles.previewText}>Pagado activo: {formatMoney(totalPaid)}</Text>
-            <Text style={styles.previewText}>Nuevo saldo: {formatMoney(saldoPreview)}</Text>
+            <Text style={styles.previewText}>Valor cuota nuevo: {formatMoney(cuotaPreview)}</Text>
+            <Text style={styles.previewText}>Total pagado actual: {formatMoney(totalPagado)}</Text>
+            <Text style={styles.previewText}>Saldo pendiente nuevo: {formatMoney(nuevoSaldo)}</Text>
+          </View>
+        </Card>
+
+        <Card style={styles.formCard}>
+          <Text style={styles.sectionTitle}>Codeudor</Text>
+
+          <View style={styles.chipList}>
+            <Pressable style={[styles.chip, !codeudorTiene ? styles.chipSelected : null]} onPress={() => setCodeudorTiene(false)}>
+              <Text style={[styles.chipText, !codeudorTiene ? styles.chipTextSelected : null]}>Sin codeudor</Text>
+            </Pressable>
+
+            <Pressable style={[styles.chip, codeudorTiene ? styles.chipSelected : null]} onPress={() => setCodeudorTiene(true)}>
+              <Text style={[styles.chipText, codeudorTiene ? styles.chipTextSelected : null]}>Con codeudor</Text>
+            </Pressable>
           </View>
 
-          <Button title="Guardar cambios" onPress={handleSave} loading={loading} />
+          {codeudorTiene ? (
+            <>
+              <Text style={styles.label}>Cliente existente o nuevo</Text>
+
+              <View style={styles.chipList}>
+                <Pressable style={[styles.chip, codeudorClienteId === '' ? styles.chipSelected : null]} onPress={() => setCodeudorClienteId('')}>
+                  <Text style={[styles.chipText, codeudorClienteId === '' ? styles.chipTextSelected : null]}>Nuevo</Text>
+                </Pressable>
+
+                {clients
+                  .filter((item: any) => item.id !== selectedCredit.clienteId)
+                  .map((item: any) => (
+                    <Pressable key={item.id} style={[styles.chip, codeudorClienteId === item.id ? styles.chipSelected : null]} onPress={() => selectCodeudorClient(item.id)}>
+                      <Text style={[styles.chipText, codeudorClienteId === item.id ? styles.chipTextSelected : null]}>{item.nombre}</Text>
+                    </Pressable>
+                  ))}
+              </View>
+
+              <Input label="Nombre completo" icon="C" value={codeudorNombreCompleto} onChangeText={setCodeudorNombreCompleto} />
+              <Input label="Sobrenombre" icon="S" value={codeudorSobrenombre} onChangeText={setCodeudorSobrenombre} />
+              <Input label="CPF solo numeros" icon="D" value={codeudorCpf} onChangeText={(value) => setCodeudorCpf(value.replace(/[^0-9]/g, ''))} keyboardType="numeric" />
+              <Input label="Direccion" icon="U" value={codeudorDireccion} onChangeText={setCodeudorDireccion} />
+              <Input label="Telefono" icon="T" value={codeudorTelefono} onChangeText={setCodeudorTelefono} keyboardType="phone-pad" />
+              <Input label="Nota codeudor" icon="N" value={codeudorNota} onChangeText={setCodeudorNota} />
+            </>
+          ) : (
+            <Text style={styles.emptyText}>Este credito quedara sin codeudor.</Text>
+          )}
         </Card>
+
+        <Button title="Guardar cambios del credito" onPress={save} loading={loading} />
       </Screen>
+
       <BottomNav />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.background },
-  infoCard: { backgroundColor: colors.primarySoft, marginBottom: 14 },
-  infoTitle: { color: colors.primary, fontSize: 16, fontWeight: '900' },
-  infoText: { color: colors.muted, marginTop: 5, lineHeight: 20, fontWeight: '700' },
-  formCard: { marginBottom: 12 },
-  sectionTitle: { color: colors.text, fontSize: 17, fontWeight: '900', marginBottom: 10 },
-  label: { color: colors.text, fontWeight: '900', marginBottom: 8 },
-  chipList: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 },
+  root: {
+    flex: 1,
+    backgroundColor: colors.background
+  },
+  heroCard: {
+    backgroundColor: colors.primary,
+    marginBottom: 12
+  },
+  heroTitle: {
+    color: '#FFFFFF',
+    fontSize: 21,
+    fontWeight: '900'
+  },
+  heroText: {
+    color: '#FFFFFF',
+    opacity: 0.9,
+    marginTop: 6,
+    fontWeight: '700'
+  },
+  formCard: {
+    marginBottom: 12
+  },
+  sectionTitle: {
+    color: colors.text,
+    fontSize: 17,
+    fontWeight: '900',
+    marginBottom: 10
+  },
+  label: {
+    color: colors.text,
+    fontWeight: '900',
+    marginBottom: 8
+  },
+  chipList: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 14
+  },
   chip: {
     borderWidth: 1,
     borderColor: colors.border,
@@ -272,12 +312,36 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     backgroundColor: '#FFFFFF'
   },
-  chipSelected: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
-  chipDangerSelected: { borderColor: colors.danger, backgroundColor: '#FFF5F5' },
-  chipText: { color: colors.muted, fontWeight: '800' },
-  chipTextSelected: { color: colors.primary },
-  chipDangerText: { color: colors.danger },
-  previewBox: { backgroundColor: colors.background, borderRadius: 14, padding: 12, marginBottom: 14 },
-  previewTitle: { color: colors.text, fontWeight: '900', marginBottom: 6 },
-  previewText: { color: colors.muted, fontWeight: '700', marginTop: 3 }
+  chipSelected: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primarySoft
+  },
+  chipText: {
+    color: colors.muted,
+    fontWeight: '800'
+  },
+  chipTextSelected: {
+    color: colors.primary
+  },
+  previewBox: {
+    backgroundColor: colors.background,
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 4
+  },
+  previewTitle: {
+    color: colors.text,
+    fontWeight: '900',
+    marginBottom: 6
+  },
+  previewText: {
+    color: colors.muted,
+    fontWeight: '700',
+    marginTop: 3
+  },
+  emptyText: {
+    color: colors.muted,
+    fontWeight: '700',
+    lineHeight: 20
+  }
 });

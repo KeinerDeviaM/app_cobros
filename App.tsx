@@ -34,6 +34,9 @@ import { ExportReportsScreen } from './src/screens/ExportReportsScreen';
 import { PreApkChecklistScreen } from './src/screens/PreApkChecklistScreen';
 import { MoreScreen } from './src/screens/MoreScreen';
 import { HelpScreen } from './src/screens/HelpScreen';
+import { TemplatesManualScreen } from './src/screens/TemplatesManualScreen';
+import { AuditLogScreen } from './src/screens/AuditLogScreen';
+import { SystemChecklistScreen } from './src/screens/SystemChecklistScreen';
 import { OfflineStatusScreen } from './src/screens/OfflineStatusScreen';
 import { RemindersScreen } from './src/screens/RemindersScreen';
 import { OperationalControlScreen } from './src/screens/OperationalControlScreen';
@@ -132,6 +135,12 @@ function Root() {
       return <MoreScreen />;
     case 'help':
       return <HelpScreen />;
+    case 'templatesManual':
+      return <TemplatesManualScreen />;
+    case 'auditLog':
+      return <AuditLogScreen />;
+    case 'systemChecklist':
+      return <SystemChecklistScreen />;
     case 'offlineStatus':
       return <OfflineStatusScreen />;
     case 'reminders':
