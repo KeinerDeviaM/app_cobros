@@ -10,6 +10,7 @@ export type ScreenName =
   | 'templatesManual'
   | 'auditLog'
   | 'systemChecklist'
+  | 'advancedModules'
   | 'importClients'
   | 'importCredits'
   | 'help'

@@ -115,6 +115,12 @@ export function MoreScreen() {
 
   const helpItems: MenuItem[] = [
     {
+      title: 'Modulos avanzados',
+      screen: 'advancedModules',
+      description: 'Ver modulos pendientes para version 2, backend, movil y entrega.',
+      supervisorAllowed: true
+    },
+    {
       title: 'Plantillas y manual',
       screen: 'templatesManual',
       description: 'Guia de uso, plantillas CSV y checklist de importacion.'

@@ -37,6 +37,7 @@ import { HelpScreen } from './src/screens/HelpScreen';
 import { TemplatesManualScreen } from './src/screens/TemplatesManualScreen';
 import { AuditLogScreen } from './src/screens/AuditLogScreen';
 import { SystemChecklistScreen } from './src/screens/SystemChecklistScreen';
+import { AdvancedModulesScreen } from './src/screens/AdvancedModulesScreen';
 import { OfflineStatusScreen } from './src/screens/OfflineStatusScreen';
 import { RemindersScreen } from './src/screens/RemindersScreen';
 import { OperationalControlScreen } from './src/screens/OperationalControlScreen';
@@ -141,6 +142,8 @@ function Root() {
       return <AuditLogScreen />;
     case 'systemChecklist':
       return <SystemChecklistScreen />;
+    case 'advancedModules':
+      return <AdvancedModulesScreen />;
     case 'offlineStatus':
       return <OfflineStatusScreen />;
     case 'reminders':
